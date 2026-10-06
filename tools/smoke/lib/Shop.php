@@ -147,7 +147,7 @@ class SmokeShop {
     public function errorLogLines() {
         $raw = is_file($this->errorLogPath()) ? file_get_contents($this->errorLogPath()) : '';
         $lines = array();
-        foreach (preg_split('/\R/', $raw) as $l) {
+        foreach (preg_split('/\r\n|\r|\n/', $raw) as $l) { // not \R: it splits UTF-8 Greek (byte 0x85)
             $l = trim(preg_replace('/^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2} - /', '', $l));
             if ($l !== '') {
                 $lines[] = $l;

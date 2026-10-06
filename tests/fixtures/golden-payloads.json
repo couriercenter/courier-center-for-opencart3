@@ -1,0 +1,669 @@
+{
+    "cod_athens_next_day": {
+        "validate_settings": true,
+        "validate_order": true,
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "11473",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "111",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.0
+                    }
+                }
+            ],
+            "CODs": [
+                {
+                    "Type": "Cash",
+                    "Amount": {
+                        "Currency": "EUR",
+                        "Value": 45.5
+                    }
+                }
+            ]
+        }
+    },
+    "bank_thessaloniki_optional_2p": {
+        "validate_settings": true,
+        "validate_order": true,
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Θεσσαλονίκη",
+                "Area": "Θεσσαλονίκη",
+                "ZipCode": "54624",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "211",
+            "Reference1": "OC-1001",
+            "NoOfItems": 2,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.5
+                    },
+                    "Length": {
+                        "Unit": "cm",
+                        "Value": 30.0
+                    },
+                    "Width": {
+                        "Unit": "cm",
+                        "Value": 20.0
+                    },
+                    "Height": {
+                        "Unit": "cm",
+                        "Value": 5.0
+                    }
+                },
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.5
+                    },
+                    "Length": {
+                        "Unit": "cm",
+                        "Value": 30.0
+                    },
+                    "Width": {
+                        "Unit": "cm",
+                        "Value": 20.0
+                    },
+                    "Height": {
+                        "Unit": "cm",
+                        "Value": 5.0
+                    }
+                }
+            ],
+            "IsMandatoryPickup": false,
+            "GenerateReturnAWB": true
+        }
+    },
+    "bank_rhodes_mandatory_3h": {
+        "validate_settings": true,
+        "validate_order": true,
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Ρόδος",
+                "Area": "Ρόδος",
+                "ZipCode": "85100",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "031",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.5
+                    },
+                    "Length": {
+                        "Unit": "cm",
+                        "Value": 30.0
+                    },
+                    "Width": {
+                        "Unit": "cm",
+                        "Value": 20.0
+                    },
+                    "Height": {
+                        "Unit": "cm",
+                        "Value": 5.0
+                    }
+                }
+            ],
+            "IsMandatoryPickup": true,
+            "GenerateReturnAWB": true
+        }
+    },
+    "boxnow_unknown_postcode": {
+        "validate_settings": true,
+        "validate_order": true,
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "99999",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "211",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.0
+                    }
+                }
+            ],
+            "LockerDeliveryInfo": {
+                "Prefix": "BOXNOW"
+            }
+        }
+    },
+    "payment_method_json_string": {
+        "validate_settings": true,
+        "validate_order": true,
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "11473",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "111",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.0
+                    }
+                }
+            ],
+            "CODs": [
+                {
+                    "Type": "Cash",
+                    "Amount": {
+                        "Currency": "EUR",
+                        "Value": 45.5
+                    }
+                }
+            ]
+        }
+    },
+    "no_products_default_weight": {
+        "validate_settings": true,
+        "validate_order": true,
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "11473",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "051",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.0
+                    }
+                }
+            ],
+            "CODs": [
+                {
+                    "Type": "Cash",
+                    "Amount": {
+                        "Currency": "EUR",
+                        "Value": 45.5
+                    }
+                }
+            ]
+        }
+    },
+    "invalid_phone_and_postcode": {
+        "validate_settings": true,
+        "validate_order": "Λείπει το τηλέφωνο παραλήπτη.",
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "ABC12",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": ""
+            },
+            "BillTo": "Requestor",
+            "BasicService": "211",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.0
+                    }
+                }
+            ],
+            "CODs": [
+                {
+                    "Type": "Cash",
+                    "Amount": {
+                        "Currency": "EUR",
+                        "Value": 45.5
+                    }
+                }
+            ]
+        }
+    },
+    "invalid_missing_settings": {
+        "validate_settings": "Λείπουν ρυθμίσεις: API Key, Τηλέφωνο αποστολέα",
+        "validate_order": true,
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": ""
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": ""
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "11473",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "111",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.0
+                    }
+                }
+            ],
+            "CODs": [
+                {
+                    "Type": "Cash",
+                    "Amount": {
+                        "Currency": "EUR",
+                        "Value": 45.5
+                    }
+                }
+            ]
+        }
+    },
+    "too_heavy": {
+        "validate_settings": true,
+        "validate_order": "Το βάρος (32.0 kg) υπερβαίνει το μέγιστο των 30 kg ανά τεμάχιο.",
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "11473",
+                "Country": "GR",
+                "CountryCode": "GR",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "111",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 32.0
+                    }
+                }
+            ],
+            "CODs": [
+                {
+                    "Type": "Cash",
+                    "Amount": {
+                        "Currency": "EUR",
+                        "Value": 45.5
+                    }
+                }
+            ]
+        }
+    },
+    "foreign_cod": {
+        "validate_settings": true,
+        "validate_order": "Η αντικαταβολή δεν επιτρέπεται για αποστολές εξωτερικού.",
+        "payload": {
+            "Context": {
+                "UserAlias": "alias",
+                "CredentialValue": "cred",
+                "ApiKey": "key"
+            },
+            "shipmentDate": "DATE",
+            "comments": "Order #1001",
+            "Requestor": {
+                "CarrierBillingAccount": "100-0000-0000"
+            },
+            "Shipper": {
+                "CarrierBillingAccount": "100-0000-0000",
+                "CompanyName": "Κατάστημα Δοκιμής",
+                "ContactName": "Κατάστημα Δοκιμής",
+                "Address": "Πατησίων 1",
+                "City": "ΑΘΗΝΑ",
+                "Area": "ΑΘΗΝΑ",
+                "ZipCode": "10431",
+                "Country": "GR",
+                "Mobile1": "2101234567"
+            },
+            "Consignee": {
+                "CompanyName": "Γιώργος Παπαδόπουλος",
+                "ContactName": "Γιώργος Παπαδόπουλος",
+                "Address": "Αλεξάνδρας 10 Διαμ. 3",
+                "City": "Αθήνα",
+                "Area": "Αθήνα",
+                "ZipCode": "10431",
+                "Country": "CY",
+                "CountryCode": "CY",
+                "Mobile1": "6900000000"
+            },
+            "BillTo": "Requestor",
+            "BasicService": "111",
+            "Reference1": "OC-1001",
+            "NoOfItems": 1,
+            "Items": [
+                {
+                    "GoodsType": "NoDocs",
+                    "Content": "ΔΕΜΑΤΑ",
+                    "IsDangerousGoods": false,
+                    "IsDryIce": false,
+                    "IsFragile": false,
+                    "Weight": {
+                        "Unit": "kg",
+                        "Value": 1.0
+                    }
+                }
+            ],
+            "CODs": [
+                {
+                    "Type": "Cash",
+                    "Amount": {
+                        "Currency": "EUR",
+                        "Value": 45.5
+                    }
+                }
+            ]
+        }
+    }
+}

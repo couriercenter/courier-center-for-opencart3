@@ -11,7 +11,8 @@ class CCPdfScaler {
 
     const SCALE_FACTOR = 0.95;
 
-    private static bool $libraries_loaded = false;
+    /** @var bool */
+    private static $libraries_loaded = false;
 
     private static function load_libraries(): void {
         if (self::$libraries_loaded) return;

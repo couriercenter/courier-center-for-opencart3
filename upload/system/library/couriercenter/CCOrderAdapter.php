@@ -7,14 +7,18 @@
  * For a courier/shipping extension we deliver to the SHIPPING address,
  * so every getter prefers shipping_* fields, then falls back to
  * payment_* fields, then to the customer-level fields.
+ *
+ * PHP 7.2+ syntax (no typed properties) - shared by the OpenCart 3 and 4 extensions.
  */
 
 namespace Opencart\Extension\Couriercenter\Library;
 
 class CCOrderAdapter {
 
-    private array $order;
-    private array $products; // from model_sale_order->getProducts($order_id)
+    /** @var array */
+    private $order;
+    /** @var array from model_sale_order->getProducts($order_id) */
+    private $products;
 
     /**
      * @param array $order    Row from model_sale_order->getOrder($order_id)

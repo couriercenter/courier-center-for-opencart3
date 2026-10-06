@@ -49,7 +49,8 @@ function cc_lint_close(array $tokens, $i) {
 }
 
 function cc_lint_line($code, $line) {
-    $lines = preg_split('/\R/', $code);
+    // Not \R: without the u flag it also splits on byte 0x85, which is inside UTF-8 Greek ("υ" = CF 85).
+    $lines = preg_split('/\r\n|\r|\n/', $code);
     return isset($lines[$line - 1]) ? $lines[$line - 1] : '';
 }
 

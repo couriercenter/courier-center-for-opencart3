@@ -4,6 +4,7 @@
  * Accurate port of class-cc-shipment-builder.php (WooCommerce plugin)
  * Replaces WC_Order with CCOrderAdapter, WP_Error with string|true returns,
  * get_option() with $settings array, CC_City_Scope with CCCityScope
+ * PHP 7.2+ syntax (no typed properties / true type) - the original failed on PHP 8.0/8.1.
  */
 
 namespace Opencart\Extension\Couriercenter\Library;
@@ -18,9 +19,12 @@ class CCShipmentBuilder {
 
     const DEFAULT_WEIGHT_KG = 1.0;
 
-    private CCOrderAdapter $order;
-    private array $settings;
-    private int $parcel_count;
+    /** @var CCOrderAdapter */
+    private $order;
+    /** @var array */
+    private $settings;
+    /** @var int */
+    private $parcel_count;
 
     /**
      * @param CCOrderAdapter $order
@@ -40,7 +44,7 @@ class CCShipmentBuilder {
      *
      * @return true|string Returns true on success, error message string on failure
      */
-    public function validate_settings(): true|string {
+    public function validate_settings() {
         $required = [
             'user_alias'      => 'User Alias',
             'credential_value'=> 'Credential Value',
@@ -65,7 +69,7 @@ class CCShipmentBuilder {
      *
      * @return true|string Returns true on success, error message string on failure
      */
-    public function validate_order(): true|string {
+    public function validate_order() {
         $first    = $this->order->get_billing_first_name();
         $last     = $this->order->get_billing_last_name();
         $address  = $this->order->get_billing_address_1();

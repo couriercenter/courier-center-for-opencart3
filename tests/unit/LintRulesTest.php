@@ -51,3 +51,7 @@ function test_twig_lint_reports_line_numbers() {
     $p = cc_lint_twig_source("<p>\n\n{{ name }}</p>");
     assert_contains('line 3', $p[0]);
 }
+function test_lint_curl_close_guard_survives_greek_text_on_earlier_lines() {
+    // "υ" is CF 85 in UTF-8; a non-unicode \R treats 0x85 as a line break and shifts every line number.
+    assert_same(array(), cc_lint_php_source("<?php\n\$m = 'Η σύνδεση λειτουργεί';\nif (PHP_VERSION_ID < 80000) { curl_close(\$ch); }\n", '7.2'));
+}

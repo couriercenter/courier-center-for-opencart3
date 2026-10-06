@@ -17,4 +17,5 @@ require_once __DIR__ . '/CCErrorGuard.php';
 require_once __DIR__ . '/CCConfigSnapshot.php';
 require_once __DIR__ . '/CCSchema.php';
 require_once __DIR__ . '/CCVoucherService.php';
+require_once __DIR__ . '/CCTelemetry.php';
 unset($cc_dir);

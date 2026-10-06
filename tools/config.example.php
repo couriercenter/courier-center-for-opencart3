@@ -11,6 +11,9 @@ return array(
     ),
     'oc4_library_dir' => 'C:/xampp/htdocs/opencart4/extension/couriercenter/library',
     'oc4_repo_dir'    => 'C:/xampp/htdocs/opencart4/extension/couriercenter',
+    // Git ref of the OC4 repo that must hold the same library (spec 5.3).
+    // 'library-oc3-compat' until the user merges that branch, then 'main'.
+    'oc4_library_ref' => 'library-oc3-compat',
     'oc4_db'          => 'opencart4',
     'oc4_prefix'      => 'oc_',
     'mysql'           => array('host' => '127.0.0.1', 'user' => 'root', 'pass' => '', 'port' => 3306),

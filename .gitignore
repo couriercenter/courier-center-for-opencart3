@@ -1,0 +1,7 @@
+/dist/
+/tools/config.php
+/tools/env/state/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini

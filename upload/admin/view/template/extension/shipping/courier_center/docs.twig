@@ -1,0 +1,147 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="pull-right">
+        <a href="{{ url_settings|e }}" class="btn btn-default"><i class="fa fa-cog"></i> Ρυθμίσεις</a>
+        <a href="{{ url_report|e }}" class="btn btn-danger"><i class="fa fa-bug"></i> Αναφορά Προβλήματος</a>
+      </div>
+      <h1>📖 Courier Center — Οδηγίες</h1>
+      <ul class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+        <li><a href="{{ breadcrumb.href|e }}">{{ breadcrumb.text|e }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <div class="container-fluid">
+    <div class="cc-docs">
+      <style>
+        .cc-docs { max-width:1000px; }
+        .cc-docs .cc-ver-badge { font-size:13px; font-weight:600; color:#fff; background:#5DC122; padding:3px 10px; border-radius:12px; vertical-align:middle; }
+        .cc-docs .cc-card { background:#fff; border:1px solid #e2e4e7; border-radius:8px; padding:20px 24px; margin:0 0 18px; }
+        .cc-docs .cc-card h2 { margin-top:0; border-bottom:2px solid #f0f0f1; padding-bottom:8px; font-size:22px; }
+        .cc-docs .cc-card h3 { margin:18px 0 6px; font-size:17px; }
+        .cc-docs table.cc-tbl { border-collapse:collapse; width:100%; margin:8px 0; }
+        .cc-docs table.cc-tbl th, .cc-docs table.cc-tbl td { border:1px solid #e2e4e7; padding:8px 10px; text-align:left; vertical-align:top; font-size:13px; }
+        .cc-docs table.cc-tbl th { background:#f6f7f7; }
+        .cc-docs ol.cc-steps { margin:8px 0 8px 18px; }
+        .cc-docs ol.cc-steps li { margin-bottom:6px; }
+        .cc-docs .cc-tip { background:#f0f6fc; border-left:4px solid #2271b1; padding:10px 14px; border-radius:3px; margin:10px 0; }
+        .cc-docs .cc-warn { background:#fff8e1; border-left:4px solid #ffb900; padding:10px 14px; border-radius:3px; margin:10px 0; }
+        .cc-docs code { background:#f0f0f1; padding:1px 5px; border-radius:3px; }
+      </style>
+
+      <p style="color:#666;">Οδηγός εγκατάστασης, ρυθμίσεων και χρήσης του <strong>Courier Center για OpenCart 3</strong> <span class="cc-ver-badge">v{{ version|e }}</span>. Απαιτήσεις: OpenCart 3.0.2.0–3.0.5.x · PHP 7.2 ή νεότερη.</p>
+
+      <div class="cc-card">
+        <h2>⭐ Τι νέο σε κάθε έκδοση</h2>
+        <h3>v1.0.0 — Πρώτη έκδοση για OpenCart 3</h3>
+        <ul style="list-style:disc; margin-left:20px;">
+          <li><strong>Όλες οι λειτουργίες της έκδοσης OpenCart 4:</strong> vouchers (κανονικά, BOX NOW, επιστροφικά, πολλαπλά τεμάχια), αντικαταβολή, μαζικές ενέργειες, Manifest, tracking στα emails, αυτόματη δημιουργία voucher, αυτόματη ενημέρωση κατάστασης και ολοκλήρωση παραγγελίας.</li>
+          <li><strong>Εγκατάσταση με ένα αρχείο</strong> από τον Extension Installer, χωρίς FTP, SQL ή «Refresh modifications».</li>
+          <li><strong>Αυτόματη επιδιόρθωση</strong> μετά από κάθε ενημέρωση, και κουμπί «Επιδιόρθωση εγκατάστασης» στις ρυθμίσεις.</li>
+          <li><strong>Cron με δύο τρόπους:</strong> εντολή για το cPanel ή URL με μυστικό κλειδί για hosting χωρίς cron.</li>
+          <li>Το ιστορικό των vouchers <strong>δεν χάνεται</strong> με Uninstall/Install.</li>
+        </ul>
+      </div>
+
+      <div class="cc-card">
+        <h2>1. Εγκατάσταση</h2>
+        <ol class="cc-steps">
+          <li><strong>Extensions → Installer</strong> → Upload → επιλέξτε το <code>courier_center_oc3.ocmod.zip</code>.</li>
+          <li><strong>Extensions → Extensions</strong> → στο «Choose the extension type» επιλέξτε <strong>Shipping</strong>.</li>
+          <li>Στο <strong>«Courier Center»</strong> πατήστε το πράσινο <strong>Install (+)</strong> και μετά <strong>Edit (μολύβι)</strong>.</li>
+          <li>Συμπληρώστε τα στοιχεία API και πατήστε <strong>«Test &amp; Auto-fill»</strong>: ελέγχει τα στοιχεία και συμπληρώνει μόνο του τον αποστολέα.</li>
+          <li>Ορίστε κόστος, BOX NOW και τις υπόλοιπες ρυθμίσεις και πατήστε <strong>Αποθήκευση</strong>.</li>
+        </ol>
+        <div class="cc-tip">Αν η σελίδα ρυθμίσεων γράφει ότι χρειάζεται νεότερη PHP, ζητήστε από τον πάροχο φιλοξενίας PHP 7.2 ή νεότερη και πατήστε ξανά Install.</div>
+      </div>
+
+      <div class="cc-card">
+        <h2>2. Ρυθμίσεις</h2>
+        <h3>Σύνδεση με το API</h3>
+        <table class="cc-tbl">
+          <tr><th style="width:230px;">Πεδίο</th><th>Περιγραφή</th></tr>
+          <tr><td>User Alias</td><td>Το όνομα χρήστη του API σας</td></tr>
+          <tr><td>Credential Value</td><td>Ο κωδικός πρόσβασης του API</td></tr>
+          <tr><td>API Key</td><td>Το κλειδί ασφαλείας API</td></tr>
+          <tr><td>Carrier Billing Account</td><td>Ο αριθμός λογαριασμού χρέωσης</td></tr>
+        </table>
+        <h3>Εκτύπωση</h3>
+        <table class="cc-tbl">
+          <tr><th style="width:230px;">Template</th><th>Χρήση</th></tr>
+          <tr><td>pdf / clean</td><td>A4, 3 vouchers/σελίδα — μη προεκτυπωμένα / προεκτυπωμένα αυτοκόλλητα</td></tr>
+          <tr><td>singlepdf_100x150_4up</td><td>A4, 4 vouchers/σελίδα (2×2) — κανονικά &amp; BOX NOW</td></tr>
+          <tr><td>singlepdf / singleclean</td><td>Θερμικός εκτυπωτής 205×100mm</td></tr>
+          <tr><td>singlepdf_100x150 / _100x170</td><td>Θερμικός 100×150mm / 100×170mm</td></tr>
+        </table>
+        <h3>Tracking &amp; Emails</h3>
+        <p>Το «Tracking URL» είναι ο σύνδεσμος παρακολούθησης· το <code>{% verbatim %}{{tracking}}{% endverbatim %}</code> αντικαθίσταται με τον αριθμό αποστολής. Όταν αλλάζετε status παραγγελίας με τσεκαρισμένο το <strong>«Notify Customer»</strong>, ο πελάτης λαμβάνει email με τον αριθμό αποστολής και σύνδεσμο παρακολούθησης.</p>
+        <h3>📦 BOX NOW</h3>
+        <p>Με το «BOX NOW Checkout» ενεργό, στο checkout εμφανίζεται η επιλογή BOX NOW <strong>μόνο</strong> όταν ο πελάτης διαλέξει μία από τις μεθόδους του «Εμφάνιση σε μεθόδους»: αυτόματη ανάθεση στο κοντινότερο locker ή επιλογή από χάρτη. Λειτουργεί εγγυημένα στο κανονικό checkout του OpenCart· σε άλλα checkout (π.χ. Journal) εμφανίζεται όπου είναι δυνατό. Από τη σελίδα της παραγγελίας μπορείτε πάντα να βγάλετε BOX NOW voucher με αυτόματη εύρεση locker.</p>
+        <h3>🚚 Μέθοδοι αποστολής που διαχειρίζεται το plugin</h3>
+        <p>Voucher δημιουργείται (αυτόματα, μαζικά ή χειροκίνητα) <strong>μόνο</strong> για παραγγελίες με αυτές τις μεθόδους.</p>
+        <div class="cc-warn">Αν δεν επιλέξετε καμία μέθοδο, το plugin διαχειρίζεται <strong>όλες</strong> τις παραγγελίες.</div>
+      </div>
+
+      <div class="cc-card">
+        <h2>3. Δημιουργία &amp; εκτύπωση voucher</h2>
+        <ol class="cc-steps">
+          <li>Sales → Orders → άνοιγμα παραγγελίας → καρτέλα <strong>«Courier Center»</strong> (δίπλα στο Ιστορικό).</li>
+          <li>Επιλέξτε υπηρεσία, επιστροφικό και τεμάχια και πατήστε <strong>«Δημιουργία Voucher»</strong>.</li>
+          <li>Πατήστε <strong>«Εκτύπωση Voucher (PDF)»</strong>. Ρυθμίσεις εκτυπωτή: A4 · Scale 100% · Margins None. <strong>Όχι</strong> «Fit to page».</li>
+        </ol>
+        <ul style="list-style:disc; margin-left:20px;">
+          <li>Χρειάζονται ΤΚ (5 ψηφία), διεύθυνση, πόλη, όνομα &amp; <strong>τηλέφωνο</strong> παραλήπτη.</li>
+          <li>BOX NOW με αντικαταβολή και αντικαταβολή εξωτερικού δεν επιτρέπονται.</li>
+          <li>Μέγιστο 30 kg/τεμάχιο, 180 cm/πλευρά, γύρος (μήκος + 2×(πλάτος+ύψος)) 300 cm.</li>
+        </ul>
+        <p><strong>Ακύρωση:</strong> «Ακύρωση» στην καρτέλα (μόνο πριν παραλάβει ο οδηγός). Μετά την ακύρωση μπορείτε να βγάλετε νέο voucher για την ίδια παραγγελία.</p>
+      </div>
+
+      <div class="cc-card">
+        <h2>4. Μαζικές ενέργειες &amp; Manifest</h2>
+        <p>Στη λίστα παραγγελιών (Sales → Orders) τσεκάρετε παραγγελίες και χρησιμοποιήστε τη μπάρα «Courier Center»: Δημιουργία Vouchers, Δημιουργία BOX NOW, Εκτύπωση, Ενημέρωση Status. Οι στήλες «Μέθοδος», «CC Voucher», «CC Status» δείχνουν την κατάσταση κάθε παραγγελίας.</p>
+        <p>Το κουμπί <strong>«Manifest»</strong> (ή <a href="{{ url_manifest|e }}">εδώ</a>) τυπώνει τη λίστα παραλαβής της ημέρας για τον οδηγό.</p>
+      </div>
+
+      <div class="cc-card">
+        <h2>5. Αυτόματη ενημέρωση κατάστασης (cron)</h2>
+        <p>Στις ρυθμίσεις, στην ενότητα «Αυτόματη ενημέρωση κατάστασης», υπάρχουν έτοιμα για αντιγραφή:</p>
+        <ol class="cc-steps">
+          <li><strong>Εντολή cron</strong> για το cPanel → Cron Jobs, κάθε 2 ώρες (<code>0 */2 * * *</code>).</li>
+          <li><strong>URL με μυστικό κλειδί</strong> για hosting χωρίς cron ή για υπηρεσίες όπως το cron-job.org.</li>
+        </ol>
+        <p>Κάθε εκτέλεση ενημερώνει τις ανοιχτές αποστολές και, αν το έχετε ορίσει, ολοκληρώνει την παραγγελία όταν η αποστολή παραδοθεί. Στις ρυθμίσεις φαίνεται η «Τελευταία εκτέλεση».</p>
+      </div>
+
+      <div class="cc-card">
+        <h2>6. Ενημερώσεις &amp; επιδιόρθωση</h2>
+        <p>Όταν βγαίνει νέα έκδοση εμφανίζεται ειδοποίηση στο admin. Ρυθμίσεις → «Έλεγχος για ενημερώσεις» → «Ενημέρωση τώρα» (με αυτόματο backup). Εναλλακτικά ανεβάστε το νέο zip από τον Extension Installer: η εγκατάσταση επιδιορθώνεται μόνη της στην επόμενη σελίδα του admin.</p>
+        <div class="cc-tip">Αν κάτι δεν δουλεύει μετά από αλλαγές στο κατάστημα, πατήστε <strong>«Επιδιόρθωση εγκατάστασης»</strong> στις ρυθμίσεις. Δεν σβήνει δεδομένα.</div>
+      </div>
+
+      <div class="cc-card">
+        <h2>7. Συχνές ερωτήσεις</h2>
+        <h3>Γιατί εμφανίζεται σφάλμα κατά τη δημιουργία voucher;</h3>
+        <p>Ελέγξτε ΤΚ (5 ψηφία), τηλέφωνο (για BOX NOW κινητό 69XXXXXXXX) και credentials (Test &amp; Auto-fill).</p>
+        <h3>Βλέπω μηνύματα «Notice» / «Warning» στις σελίδες.</h3>
+        <p>Είναι μηνύματα PHP που εμφανίζει το OpenCart όταν είναι ενεργό το System → Settings → Server → «Display Errors». Σε κατάστημα σε λειτουργία απενεργοποιήστε το (τα μηνύματα συνεχίζουν να γράφονται στο Error Log).</p>
+        <h3>Δημιουργήθηκε voucher για παραγγελία άλλου courier;</h3>
+        <p>Ορίστε στις ρυθμίσεις τις «Μεθόδους αποστολής που διαχειρίζεται το plugin».</p>
+        <h3>Η κατάσταση των αποστολών δεν ενημερώνεται;</h3>
+        <p>Βεβαιωθείτε ότι έχετε ορίσει το cron (ενότητα 5) και ότι η «Τελευταία εκτέλεση» αλλάζει.</p>
+      </div>
+
+      <div class="cc-card">
+        <h2>8. Υποστήριξη</h2>
+        <p>Για τεχνικό πρόβλημα χρησιμοποιήστε τη φόρμα Αναφοράς Προβλήματος: στέλνεται στην ομάδα της Courier Center μαζί με τα τεχνικά στοιχεία του καταστήματος.</p>
+        <p><a href="{{ url_report|e }}" class="btn btn-danger">🐛 Άνοιγμα φόρμας Αναφοράς Προβλήματος</a></p>
+      </div>
+
+      <p style="color:#888; font-size:12px; text-align:center; margin:24px 0;">Courier Center για OpenCart 3 · v{{ version|e }} · courier.gr</p>
+    </div>
+  </div>
+</div>
+{{ footer }}

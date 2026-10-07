@@ -1,0 +1,95 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="pull-right"><a href="{{ url_settings|e }}" class="btn btn-default"><i class="fa fa-reply"></i> Πίσω στις Ρυθμίσεις</a></div>
+      <h1>🐛 Αναφορά Προβλήματος</h1>
+      <ul class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+        <li><a href="{{ breadcrumb.href|e }}">{{ breadcrumb.text|e }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <div class="container-fluid">
+    <div id="cc-bug-result"></div>
+    <div class="panel panel-default" style="max-width:760px;">
+      <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-bug"></i> Αναφορά τεχνικού προβλήματος στην ομάδα Courier Center</h3></div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label class="control-label" for="cc-bug-title">Τίτλος Προβλήματος <span class="text-danger">*</span></label>
+          <input type="text" id="cc-bug-title" class="form-control" placeholder="π.χ. Το voucher δεν δημιουργείται για παραγγελίες με αντικαταβολή">
+        </div>
+        <div class="form-group">
+          <label class="control-label" for="cc-bug-description">Περιγραφή <span class="text-danger">*</span></label>
+          <textarea id="cc-bug-description" rows="6" class="form-control" placeholder="Περιγράψτε το πρόβλημα αναλυτικά:&#10;- Τι ακριβώς συνέβη;&#10;- Πώς αναπαράγεται;&#10;- Τι περιμένατε να συμβεί;"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="control-label" for="cc-bug-severity">Σοβαρότητα <span class="text-danger">*</span></label>
+          <select id="cc-bug-severity" class="form-control" style="max-width:420px;">
+            <option value="low">🟢 Χαμηλή — μικρό πρόβλημα, υπάρχει workaround</option>
+            <option value="medium" selected>🟡 Μεσαία — επηρεάζει λειτουργία</option>
+            <option value="critical">🔴 Κρίσιμη — δεν λειτουργεί καθόλου</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="control-label" for="cc-bug-email">Email Επικοινωνίας <span class="text-danger">*</span></label>
+          <input type="email" id="cc-bug-email" class="form-control" style="max-width:420px;" value="{{ user_email|e }}" placeholder="email@example.com">
+          <p class="help-block">Θα χρησιμοποιηθεί από την ομάδα Courier Center για να επικοινωνήσει μαζί σας σχετικά με την αναφορά.</p>
+        </div>
+        <hr>
+        <h5 class="text-muted text-uppercase" style="font-size:12px; letter-spacing:.05em;">Πληροφορίες Συστήματος (αποστέλλονται αυτόματα)</h5>
+        <table class="table table-condensed table-bordered" style="max-width:520px;">
+          <tr><td class="text-muted" style="width:180px;">Site URL</td><td><code>{{ site_url|e }}</code></td></tr>
+          <tr><td class="text-muted">Έκδοση Extension</td><td><code>{{ plugin_version|e }}</code></td></tr>
+          <tr><td class="text-muted">OpenCart</td><td><code>{{ opencart_version|e }}</code></td></tr>
+          <tr><td class="text-muted">PHP</td><td><code>{{ php_version|e }}</code></td></tr>
+        </table>
+        <button type="button" id="cc-bug-submit" class="btn btn-primary"><i class="fa fa-paper-plane"></i> Αποστολή Αναφοράς</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var URL_SUBMIT = {{ url_submit|json_encode }};
+  var btn = document.getElementById('cc-bug-submit');
+  function show(type, text) {
+    var box = document.getElementById('cc-bug-result');
+    box.innerHTML = '';
+    var d = document.createElement('div');
+    d.className = 'alert alert-' + type;
+    d.textContent = text;
+    box.appendChild(d);
+    window.scrollTo(0, 0);
+  }
+  function v(id) { return document.getElementById(id).value.trim(); }
+  btn.addEventListener('click', function () {
+    var title = v('cc-bug-title'), desc = v('cc-bug-description'), email = v('cc-bug-email'), sev = document.getElementById('cc-bug-severity').value;
+    if (!title) { show('danger', '❌ Συμπλήρωσε τον τίτλο του προβλήματος.'); return; }
+    if (!desc) { show('danger', '❌ Συμπλήρωσε την περιγραφή του προβλήματος.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { show('danger', '❌ Συμπλήρωσε έγκυρο email επικοινωνίας.'); return; }
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Αποστολή...';
+    fetch(URL_SUBMIT, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({title: title, description: desc, severity: sev, email: email}).toString()})
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        btn.disabled = false; btn.innerHTML = orig;
+        var j = null;
+        try { j = JSON.parse(t); } catch (e) {}
+        if (!j) { show('danger', '❌ Η σύνδεση έληξε. Κάνε ανανέωση της σελίδας (F5) και ξαναδοκίμασε.'); return; }
+        if (j.success) {
+          show('success', '✅ Η αναφορά στάλθηκε επιτυχώς! Η ομάδα του Courier Center θα επικοινωνήσει μαζί σας.');
+          document.getElementById('cc-bug-title').value = '';
+          document.getElementById('cc-bug-description').value = '';
+        } else {
+          show('danger', '❌ ' + (j.error || 'Άγνωστο σφάλμα'));
+        }
+      })
+      .catch(function (e) { btn.disabled = false; btn.innerHTML = orig; show('danger', '❌ Σφάλμα σύνδεσης: ' + e.message); });
+  });
+})();
+</script>
+{{ footer }}

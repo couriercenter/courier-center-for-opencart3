@@ -1,0 +1,131 @@
+<script>
+(function () {
+  var DATA = {{ shipments|json_encode }};
+  var METHODS = {{ methods|json_encode }};
+  var TRACK = {{ tracking_url|json_encode }};
+  var URLS = {{ urls|json_encode }};
+  var MANIFEST = {{ url_manifest|json_encode }};
+  var PLACEHOLDER = '{' + '{tracking}}';
+  var EXPIRED = 'Η σύνδεση έληξε ή ο server απάντησε με σφάλμα. Κάνε ανανέωση της σελίδας (F5) και ξαναδοκίμασε.';
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function selected() {
+    return Array.prototype.map.call(document.querySelectorAll('#form-order input[name="selected[]"]:checked'), function (c) { return c.value; });
+  }
+  function needSelection() {
+    var s = selected();
+    if (!s.length) { alert('Επίλεξε πρώτα παραγγελίες (τσέκαρε τα κουτάκια αριστερά).'); return null; }
+    return s;
+  }
+  function bulkPrint(kind) {
+    var s = needSelection(); if (!s) return;
+    window.open(URLS[kind] + '&order_ids=' + encodeURIComponent(s.join(',')), '_blank');
+  }
+  function bulkPost(kind, question, btn) {
+    var s = needSelection(); if (!s) return;
+    if (question && !confirm(question)) return;
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Παρακαλώ περιμένετε...';
+    fetch(URLS[kind], {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'order_ids=' + encodeURIComponent(s.join(','))})
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        btn.disabled = false; btn.innerHTML = orig;
+        var j = null;
+        try { j = JSON.parse(t); } catch (e) {}
+        if (!j) { alert(EXPIRED); return; }
+        if (j.success) { alert(j.message || 'Ολοκληρώθηκε.'); location.reload(); } else { alert('Σφάλμα: ' + (j.error || 'Άγνωστο')); }
+      })
+      .catch(function (e) { btn.disabled = false; btn.innerHTML = orig; alert(String(e)); });
+  }
+  function addManifestButton() {
+    var bar = document.querySelector('#content .page-header .pull-right');
+    if (!bar || document.getElementById('cc-manifest-btn')) return;
+    var a = el('a', 'btn btn-info');
+    a.id = 'cc-manifest-btn';
+    a.href = MANIFEST;
+    a.title = 'Manifest Παραλαβής — Courier Center';
+    a.innerHTML = '<i class="fa fa-clipboard"></i> Manifest';
+    bar.insertBefore(a, bar.firstChild);
+  }
+  function addBulkBar() {
+    var form = document.getElementById('form-order');
+    if (!form || document.getElementById('cc-bulk-bar')) return;
+    var panel = form.closest ? form.closest('.panel') : null;
+    var heading = panel ? panel.querySelector('.panel-heading') : null;
+    var bar = el('div');
+    bar.id = 'cc-bulk-bar';
+    bar.style.cssText = 'margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;';
+    bar.appendChild(el('small', '', 'Courier Center — επιλεγμένες:'));
+    [
+      ['create', 'btn-primary', 'fa-truck', 'Δημιουργία Vouchers', 'Δημιουργία voucher (Επόμενη Μέρα) για τις επιλεγμένες παραγγελίες;'],
+      ['createbn', 'btn-warning', 'fa-cube', 'Δημιουργία BOX NOW', 'Δημιουργία BOX NOW voucher για τις επιλεγμένες παραγγελίες που επέλεξαν BOX NOW στο checkout;'],
+      ['print', 'btn-success', 'fa-print', 'Εκτύπωση Vouchers', null],
+      ['printbn', 'btn-warning', 'fa-cube', 'Εκτύπωση BOX NOW', null],
+      ['status', 'btn-info', 'fa-refresh', 'Ενημέρωση Status', null]
+    ].forEach(function (b) {
+      var btn = el('button', 'btn btn-sm ' + b[1]);
+      btn.type = 'button';
+      btn.innerHTML = '<i class="fa ' + b[2] + '"></i> ';
+      btn.appendChild(document.createTextNode(b[3]));
+      btn.addEventListener('click', function () {
+        if (b[0] === 'print' || b[0] === 'printbn') { bulkPrint(b[0]); } else { bulkPost(b[0], b[4], btn); }
+      });
+      bar.appendChild(btn);
+    });
+    if (heading) { heading.appendChild(bar); } else { form.parentNode.insertBefore(bar, form); }
+  }
+  function badge(text, color, bg, strike) {
+    var td = el('td', 'text-center hidden-xs hidden-sm cc-col');
+    td.style.whiteSpace = 'nowrap';
+    var s = el('span', '', text);
+    s.style.cssText = 'font-size:11px; padding:2px 6px; border-radius:3px;' + (color ? 'color:' + color + ';' : '') + (bg ? 'background:' + bg + ';' : '') + (strike ? 'text-decoration:line-through;' : '');
+    td.appendChild(s);
+    return td;
+  }
+  function addColumns() {
+    var table = document.querySelector('#form-order table');
+    if (!table || table.querySelector('.cc-col-head')) return;
+    var head = table.querySelector('thead tr');
+    if (head) {
+      ['Μέθοδος', 'CC Voucher', 'CC Status'].forEach(function (t) {
+        var td = el('td', 'text-center hidden-xs hidden-sm cc-col-head');
+        td.appendChild(el('small', '', t));
+        head.appendChild(td);
+      });
+    }
+    Array.prototype.forEach.call(table.querySelectorAll('tbody tr'), function (tr) {
+      var cb = tr.querySelector('input[name="selected[]"]');
+      if (!cb) return;
+      var id = String(cb.value), s = DATA[id], m = METHODS[id];
+      var tdM = badge(m ? (m.name || '—') + (m.managed ? '' : ' ⚠️') : '—', m && !m.managed ? '#c0392b' : '#2c3338');
+      if (m && !m.managed) tdM.title = 'Δεν διαχειρίζεται από το plugin — δεν δημιουργείται voucher αυτόματα/μαζικά';
+      var tdV, tdS;
+      if (!s || !s.voucher_number) {
+        tdV = badge('—', '#ccc'); tdS = badge('—', '#ccc');
+      } else if (s.is_voided == 1) {
+        tdV = badge(s.voucher_number, '#aaa', '', true); tdS = badge('Ακυρωμένη', '#c0392b', '#fce8e6');
+      } else {
+        tdV = el('td', 'text-center hidden-xs hidden-sm cc-col');
+        var a = el('a', '', (s.is_boxnow == 1 ? '📦 ' : '') + s.voucher_number + ' ↗');
+        a.href = TRACK.replace(PLACEHOLDER, encodeURIComponent(s.tracking_number || s.voucher_number));
+        a.target = '_blank'; a.rel = 'noopener'; a.style.fontSize = '12px';
+        tdV.appendChild(a);
+        var code = s.status_code || '', color = '#2271b1', bg = '#f0f6fc';
+        if (['29', '87'].indexOf(code) !== -1) { color = '#46b450'; bg = '#e7f5e9'; }
+        else if (['28', '30'].indexOf(code) !== -1) { color = '#dba617'; bg = '#fff3cd'; }
+        else if (['25', '99', '14'].indexOf(code) !== -1) { color = '#dc3232'; bg = '#fce8e6'; }
+        tdS = badge(s.status_desc || (code ? 'Κωδικός ' + code : '—'), color, bg);
+      }
+      tr.appendChild(tdM); tr.appendChild(tdV); tr.appendChild(tdS);
+    });
+  }
+  function init() { addManifestButton(); addBulkBar(); addColumns(); }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>

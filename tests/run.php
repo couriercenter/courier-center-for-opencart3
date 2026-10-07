@@ -7,6 +7,9 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 set_error_handler(function ($severity, $message, $file, $line) {
+    if (!(error_reporting() & $severity)) {
+        return false; // deliberately silenced with @ (e.g. @copy() whose failure the code handles)
+    }
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 require __DIR__ . '/bootstrap.php';

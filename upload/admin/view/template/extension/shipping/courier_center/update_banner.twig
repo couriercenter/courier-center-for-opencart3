@@ -1,0 +1,25 @@
+<script>
+(function () {
+  var VER = {{ version|json_encode }}, URL = {{ url|json_encode }};
+  try { if (localStorage.getItem('cc_upd_dismissed') === VER) return; } catch (e) {}
+  function add() {
+    var content = document.getElementById('content');
+    if (!content || document.getElementById('cc-update-banner')) return;
+    var d = document.createElement('div');
+    d.id = 'cc-update-banner';
+    d.style.cssText = 'margin:10px 15px; padding:12px 16px; background:#e7f5e9; border:1px solid #46b450; border-left:4px solid #46b450; border-radius:5px; font-size:14px; display:flex; align-items:center; gap:10px;';
+    var text = document.createElement('span');
+    text.style.flex = '1';
+    text.textContent = '📦 Νέα έκδοση Courier Center v' + VER + ' διαθέσιμη.';
+    var a = document.createElement('a');
+    a.href = URL; a.className = 'btn btn-success btn-sm'; a.textContent = 'Ενημέρωση τώρα →';
+    var x = document.createElement('span');
+    x.textContent = '✕'; x.title = 'Απόκρυψη';
+    x.style.cssText = 'cursor:pointer; font-size:16px; color:#666; padding:0 4px;';
+    x.onclick = function () { try { localStorage.setItem('cc_upd_dismissed', VER); } catch (e) {} d.parentNode.removeChild(d); };
+    d.appendChild(text); d.appendChild(a); d.appendChild(x);
+    content.insertBefore(d, content.firstChild);
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', add); } else { add(); }
+})();
+</script>

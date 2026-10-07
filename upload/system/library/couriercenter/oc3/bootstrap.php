@@ -20,4 +20,5 @@ require_once __DIR__ . '/CCVoucherService.php';
 require_once __DIR__ . '/CCTelemetry.php';
 require_once __DIR__ . '/CCUpdater.php';
 require_once __DIR__ . '/CCBoxnow.php';
+require_once __DIR__ . '/CCCronRunner.php';
 unset($cc_dir);

@@ -1,5 +1,8 @@
 <?php
-/** Voids every active voucher of the shop with the real API, so no test shipment stays alive. Always runs. */
+/**
+ * Voids the active vouchers this run created (all of them when "cleanup" is requested explicitly), with the real API,
+ * so no test shipment stays alive. Always runs.
+ */
 return function (SmokeContext $c) {
     $s = $c->shop;
     if (!$s->rows("SHOW TABLES LIKE '" . $s->env['prefix'] . "cc_shipments'")) {
@@ -7,6 +10,20 @@ return function (SmokeContext $c) {
         return;
     }
     $rows = $s->rows("SELECT `order_id`, `voucher_number` FROM `{p}cc_shipments` WHERE `is_voided` = 0 AND `voucher_number` <> ''");
+    if (empty($c->data['cleanup_all']) && !empty($c->data['preexisting'])) {
+        $keep = array_flip($c->data['preexisting']);
+        $kept = 0;
+        $rows = array_values(array_filter($rows, function ($r) use ($keep, &$kept) {
+            if (isset($keep[$r['voucher_number']])) {
+                $kept++;
+                return false;
+            }
+            return true;
+        }));
+        if ($kept) {
+            echo "  ($kept voucher(s) that were active before this run stay untouched; run \"cleanup\" alone to void them)" . PHP_EOL;
+        }
+    }
     if (!$rows) {
         echo "  (no active vouchers)\n";
         return;

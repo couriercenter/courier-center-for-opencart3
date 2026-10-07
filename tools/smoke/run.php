@@ -10,6 +10,16 @@ require __DIR__ . '/bootstrap.php';
 $shop = smoke_shop(isset($argv[1]) ? $argv[1] : '');
 $only = array_slice($argv, 2);
 $ctx = new SmokeContext($shop);
+// The cleanup of a normal run voids only what THIS run created: the vouchers that were already active when it started
+// (e.g. made by hand in the test shop) stay. (A snapshot, not a timestamp: OpenCart writes dates in its own timezone.)
+// Running "cleanup" explicitly voids every active voucher.
+$ctx->data['preexisting'] = array();
+if ($shop->rows("SHOW TABLES LIKE '" . $shop->env['prefix'] . "cc_shipments'")) {
+    foreach ($shop->rows("SELECT `voucher_number` FROM `{p}cc_shipments` WHERE `is_voided` = 0 AND `voucher_number` <> ''") as $r) {
+        $ctx->data['preexisting'][] = $r['voucher_number'];
+    }
+}
+$ctx->data['cleanup_all'] = in_array('cleanup', $only, true);
 $files = glob(__DIR__ . '/sections/*.php');
 sort($files);
 foreach ($files as $file) {

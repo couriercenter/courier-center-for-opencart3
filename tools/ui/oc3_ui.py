@@ -50,6 +50,7 @@ def main():
         check(bool(token), 'logged in')
 
         print('== settings: pickup point rows')
+        sql("DELETE FROM oc_setting WHERE `key`='shipping_courier_center_pickup_points'")
         page.goto(A('extension/shipping/courier_center'))
         rows0 = page.locator('#cc-points-table tbody tr').count()
         page.click('#cc-pt-add')
@@ -69,6 +70,7 @@ def main():
         saved = sql("SELECT value FROM oc_setting WHERE `key`='shipping_courier_center_pickup_points'")
         pts = json.loads(saved[0][0]) if saved else []
         check(rows0 + 1 == len(pts) and any(p['code'] == '100-0120-0003' and p['name'] for p in pts), 'saved %d points incl. 0003 with sender data' % len(pts))
+        n_opts = 1 + len(pts)
 
         oids = [r[0] for r in sql("SELECT order_id FROM oc_cc_shipments WHERE is_voided=1 ORDER BY order_id DESC LIMIT 2")]
         o_norm, o_bn = oids[0], oids[1]
@@ -77,7 +79,7 @@ def main():
         page.goto(A('sale/order/info', '&order_id=' + o_norm))
         page.click('a[href="#tab-courier-center"]')
         sel = page.locator('#cc-pickup-point')
-        check(sel.count() == 1 and sel.locator('option').count() == 3, 'point select with 3 points')
+        check(sel.count() == 1 and sel.locator('option').count() == n_opts, 'point select with %d points' % n_opts)
         sel.select_option('100-0120-0003')
         page.click('[data-cc-action="create"]')
         page.wait_for_load_state('load')
@@ -98,32 +100,30 @@ def main():
 
         print('== order list: columns, point select, print split')
         page.goto(A('sale/order'))
-        check(page.locator('#cc-bulk-point option').count() == 3, 'bulk point select with 3 points')
+        check(page.locator('#cc-bulk-point option').count() == n_opts, 'bulk point select with %d points' % n_opts)
         heads = page.locator('#form-order thead .cc-col-head').all_inner_texts()
         check('Τύπος' in ' '.join(heads), 'Τύπος column: ' + ', '.join(heads))
         tr_bn = page.locator('#form-order tbody tr', has=page.locator('input[name="selected[]"][value="%s"]' % o_bn))
         check('BOX NOW' in tr_bn.inner_text(), 'BOX NOW badge on the BOX NOW order')
         for oid in (o_norm, o_bn):
             page.check('input[name="selected[]"][value="%s"]' % oid)
-        with ctx.expect_page() as pop1:
-            page.click('#cc-bulk-bar button:has-text("Εκτύπωση Vouchers")')
-        first = pop1.value
-        first.wait_for_load_state('commit')
-        check('bulkPrint' in first.url and 'Boxnow' not in first.url and o_norm in first.url, 'first PDF = normal vouchers')
+        page.evaluate("() => { window.__opened = []; window.open = function (u) { window.__opened.push(String(u)); return null; }; }")
+        page.click('#cc-bulk-bar button:has-text("Εκτύπωση Vouchers")')
         note = page.locator('#cc-print-note')
         check(note.is_visible() and 'BOX NOW (1)' in note.inner_text(), 'note offers the BOX NOW PDF')
-        with ctx.expect_page() as pop2:
-            note.locator('button').click()
-        pop2.value.wait_for_load_state('commit')
-        print('    popups:', first.url[-60:], '|', pop2.value.url[-60:])
-        check('bulkPrintBoxnow' in pop2.value.url and o_bn in pop2.value.url, 'second PDF = BOX NOW')
-        first.close()
-        pop2.value.close()
+        note.locator('button').click()
+        opened = page.evaluate("() => window.__opened") or []
+        print('    url now:', page.url[-40:])
+        print('    opened:', [u[-50:] for u in opened])
+        check(len(opened) == 2 and 'bulkPrint&' in opened[0] and o_norm in opened[0] and 'bulkPrintBoxnow' in opened[1] and o_bn in opened[1], 'print: normal PDF first, BOX NOW PDF from the note')
+        pdf = page.evaluate("async (u) => { const r = await fetch(u, {credentials: 'same-origin'}); const b = await r.text(); return b.slice(0, 4); }", opened[1] if len(opened) > 1 else A('x'))
+        check(pdf == '%PDF', 'the BOX NOW PDF downloads')
 
         print('== customer return form JS')
         for k, v in (('enabled', '1'), ('require_approval', '1'), ('method_dropoff', '1'), ('method_boxnow', '1')):
             sql("DELETE FROM oc_setting WHERE `key`='shipping_courier_center_returns_%s'" % k)
             sql("INSERT INTO oc_setting SET store_id=0, code='shipping_courier_center', `key`='shipping_courier_center_returns_%s', value='%s', serialized=0" % (k, v))
+        sql("DELETE FROM oc_cc_return_requests WHERE order_id=" + o_norm)
         email = 'ui-returns@example.com'
         sql("DELETE FROM oc_customer WHERE email='%s'" % email)
         sql("INSERT INTO oc_customer SET customer_group_id=1, store_id=0, language_id=1, firstname='UI', lastname='Test', email='%s', telephone='6912345678', fax='', password=MD5('ret123'), salt='', newsletter=0, address_id=0, custom_field='', ip='', status=1, safe=0, token='', code='', date_added=NOW()" % email)
@@ -139,7 +139,9 @@ def main():
         cpage.fill('#input-password', 'ret123')
         cpage.click('#content input[type=submit], #content button[type=submit]')
         cpage.wait_for_load_state('load')
+        print('    after login:', cpage.url)
         cpage.goto(BASE + 'index.php?route=account/order/info&order_id=' + o_norm)
+        print('    order page:', cpage.url, cpage.locator('#cc-returns').count())
         check(cpage.locator('#cc-returns a:has-text("Αίτημα επιστροφής")').count() == 1, 'order page shows the button')
         cpage.click('#cc-returns a:has-text("Αίτημα επιστροφής")')
         cpage.wait_for_load_state('load')
@@ -177,7 +179,7 @@ try:
 finally:
     awbs += [r[0] for r in sql("SELECT return_awb FROM oc_cc_return_requests WHERE return_awb <> '' AND created_at > NOW() - INTERVAL 15 MINUTE AND status = 'shipment_created'")]
     if awbs:
-        out = subprocess.run([PHP, 'tools/ui/void.php'] + awbs, capture_output=True, text=True, encoding='utf-8')
+        out = subprocess.run([PHP, 'tools/ui/void.php'] + awbs, capture_output=True, text=True, encoding='utf-8', env=dict(__import__('os').environ, CC_UI_DB=DB))
         print(out.stdout.strip())
     print('\n[UI] %d ok, %d failed' % (ok, len(fail)))
     for f in fail:

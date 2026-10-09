@@ -69,7 +69,8 @@ return function (SmokeContext $c) {
     // 1.1.0: secrets never sent back; an empty field keeps them; a tracking URL without {{tracking}} is replaced
     $cr = cc_oc4_credentials();
     $page = $s->adminGet('extension/shipping/courier_center')['body'];
-    $c->ok(strpos($page, $cr['credential_value']) === false && strpos($page, $cr['api_key']) === false, 'settings page does not contain the credential value / API key');
+    // (the test account's User Alias equals its Credential Value, and the alias stays visible: check the fields themselves)
+    $c->ok(strpos($page, $cr['api_key']) === false && preg_match('/name="shipping_courier_center_credential_value" value=""/', $page) === 1, 'settings page sends neither the API key nor the credential value');
     $c->ok(strpos($page, 'type="password" name="shipping_courier_center_credential_value"') !== false, 'credential value is a password field');
     $again = $fields;
     $again['shipping_courier_center_credential_value'] = '';

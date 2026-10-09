@@ -34,7 +34,9 @@ trait CCControllerTrait {
                 $this->ccSendReturnMail($event, (int)$id);
             },
             function ($level, $message) {
-                $this->log->write('Courier Center returns [' . $level . ']: ' . $message);
+                if ($level !== 'info') { // the shop's error log gets only problems
+                    $this->log->write('Courier Center returns [' . $level . ']: ' . $message);
+                }
             });
     }
 

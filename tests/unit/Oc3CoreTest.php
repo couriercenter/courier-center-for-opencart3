@@ -99,3 +99,9 @@ function test_oc3_config_snapshot_decodes_serialized_values() {
     assert_same(array('courier_center'), $c->get('shipping_courier_center_handled_shipping_methods'));
     assert_same(null, $c->get('nope'));
 }
+function test_oc3_bootstrap_loads_every_library_class() {
+    $boot = file_get_contents(CC_OC3 . '/bootstrap.php');
+    foreach (glob(CC_LIB . '/CC*.php') as $f) {
+        assert_contains("'" . basename($f) . "'", $boot, basename($f) . ' is required by oc3/bootstrap.php');
+    }
+}

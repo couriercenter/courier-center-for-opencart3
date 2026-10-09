@@ -75,6 +75,13 @@ while (true) {
         } elseif ($cmd === 'RSET' || $cmd === 'NOOP') {
             fwrite($conn, "250 OK\r\n");
         } elseif ($cmd === 'AUTH') {
+            // AUTH LOGIN asks for user + password (OpenCart 4's SMTP client expects the 334 prompts).
+            if (stripos($line, 'LOGIN') !== false && trim(substr(trim($line), 10)) === '') {
+                fwrite($conn, "334 VXNlcm5hbWU6\r\n");
+                fgets($conn);
+                fwrite($conn, "334 UGFzc3dvcmQ6\r\n");
+                fgets($conn);
+            }
             fwrite($conn, "235 Authentication successful\r\n");
         } else {
             fwrite($conn, "250 OK\r\n");

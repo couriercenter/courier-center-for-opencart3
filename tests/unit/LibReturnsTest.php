@@ -101,6 +101,11 @@ function test_lib_returns_settings_defaults_and_sanitize() {
     $errors = CCReturnsSettings::sanitizePost($post, array('100-0120-0004', '100-0120-0001'));
     assert_same('1', $post['shipping_courier_center_returns_enabled']);
     assert_same('0', $post['shipping_courier_center_returns_method_boxnow']);
+    assert_same('1', $post['shipping_courier_center_returns_require_approval'], 'not posted → approval stays on');
+    assert_same('1', $post['shipping_courier_center_returns_method_dropoff'], 'not posted → Drop Off on');
+    $off = array('shipping_courier_center_returns_require_approval' => '0');
+    CCReturnsSettings::sanitizePost($off, array());
+    assert_same('0', $off['shipping_courier_center_returns_require_approval'], 'explicit 0 is kept');
     assert_same('0.5', $post['shipping_courier_center_returns_weight']);
     assert_same(array(array('original' => '100-0120-0001', 'return' => '100-0120-0009')), $post['shipping_courier_center_returns_accounts']);
     assert_count(3, $errors);

@@ -71,7 +71,9 @@ return function (SmokeContext $c) {
     $row2 = $s->row("SELECT `voucher_number`, `pickup_point` FROM `{p}cc_shipments` WHERE `order_id` = '$order2'");
     $c->track(isset($row2['voucher_number']) ? $row2['voucher_number'] : '');
     $c->ok(isset($row2['pickup_point']) && $row2['pickup_point'] === $main, 'bulk voucher from the main code');
-    $mp = $s->adminGet('extension/shipping/courier_center/manifest', array('account' => '100-0120-0001'))['body'];
+    // The shop's PHP date and MySQL NOW() may differ (timezones of the test servers): ask for the voucher's own date.
+    $day = $s->row("SELECT DATE(`created_at`) AS d FROM `{p}cc_shipments` WHERE `order_id` = '$order'");
+    $mp = $s->adminGet('extension/shipping/courier_center/manifest', array('account' => '100-0120-0001', 'manifest_date' => isset($day['d']) ? $day['d'] : date('Y-m-d')))['body'];
     $c->ok(strpos($mp, 'name="account"') !== false && strpos($mp, '1 vouchers') !== false, 'manifest page: point filter + count of that point');
     $unknown = $s->adminJson('extension/shipping/courier_center/bulkCreate', array('order_ids' => (string)$order2, 'pickup_point' => 'GONE'));
     $c->ok(empty($unknown['success']) && strpos($unknown['error'], 'δεν υπάρχει πια') !== false, 'bulk with a removed point is refused');

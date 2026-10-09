@@ -110,7 +110,7 @@
             <label class="col-sm-2 control-label">{{ label|e }}</label>
             <div class="col-sm-10">
               {% if field == 'credential_value' or field == 'api_key' %}
-              <input type="password" name="shipping_courier_center_{{ field|e }}" value="" class="form-control" autocomplete="new-password" placeholder="{{ (attribute(_context, field ~ '_saved') ? '•••••••• αποθηκευμένο — άφησε κενό για να μείνει ίδιο' : '')|e }}" />
+              <input type="password" name="shipping_courier_center_{{ field|e }}" value="" class="form-control" autocomplete="new-password" placeholder="{{ (((field == 'credential_value' and credential_value_saved) or (field == 'api_key' and api_key_saved)) ? '•••••••• αποθηκευμένο — άφησε κενό για να μείνει ίδιο' : '')|e }}" />
               {% else %}
               <input type="text" name="shipping_courier_center_{{ field|e }}" value="{{ attribute(_context, field)|e }}" class="form-control" autocomplete="off" />
               {% endif %}

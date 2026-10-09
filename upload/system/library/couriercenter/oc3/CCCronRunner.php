@@ -13,15 +13,17 @@ class CCCronRunner {
      * @param string      $lock_dir writable folder (DIR_CACHE)
      * @param object|null $tracker  tests pass a stand-in with run(); default: CCStatusTracker with the shop's credentials
      * @param bool        $ping     usage ping (tests pass false)
+     * @param callable|null $notifier returns emails (event, id); the CLI has no mail: null
      * @return array ['ran' => bool, 'message' => string, 'lines' => string[]]
      */
-    public static function run($db, $prefix, $config, $lock_dir, $site_url, $tracker = null, $ping = true) {
+    public static function run($db, $prefix, $config, $lock_dir, $site_url, $tracker = null, $ping = true, $notifier = null) {
         $lock = rtrim(str_replace('\\', '/', $lock_dir), '/') . '/cc_cron.lock';
         if (is_file($lock) && (time() - (int)@filemtime($lock)) < self::LOCK_TTL) {
             return array('ran' => false, 'message' => 'Another run is in progress (' . basename($lock) . ')', 'lines' => array());
         }
         @file_put_contents($lock, (string)time());
         try {
+            $returns_api = null;
             if ($tracker === null) {
                 $text = function ($key) use ($config) {
                     return html_entity_decode((string)$config->get('shipping_courier_center_' . $key), ENT_QUOTES, 'UTF-8');
@@ -29,8 +31,15 @@ class CCCronRunner {
                 $api = new CCApi($text('user_alias'), $text('credential_value'), $text('api_key'), $text('billing_account'));
                 $svc = new \Opencart\Extension\Couriercenter\Library\CCVoucherService($db, $config, $prefix, $api);
                 $tracker = $svc->tracker();
+                $returns_api = $api;
             }
             $report = $tracker->run();
+            if ($returns_api !== null) {
+                // Returns: uncertain creations are verified, created ones tracked (never touches the order).
+                $returns = new \Opencart\Extension\Couriercenter\Library\CCReturnsService($db, $prefix, $config, $returns_api, $notifier);
+                $lines = (new \Opencart\Extension\Couriercenter\Library\CCReturnsTracker($returns))->cron();
+                $report['lines'] = array_merge(isset($report['lines']) ? $report['lines'] : array(), $lines);
+            }
             $state = new CCState($db, $prefix);
             $state->set('cron_last_run', date('Y-m-d H:i:s'));
             $state->set('cron_next_run', date('Y-m-d H:i:s', time() + 7200));

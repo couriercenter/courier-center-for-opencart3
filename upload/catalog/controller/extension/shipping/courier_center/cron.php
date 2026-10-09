@@ -26,7 +26,9 @@ class ControllerExtensionShippingCourierCenterCron extends Controller {
         CCErrorGuard::start($this->ccLogger());
         try {
             $site = (string)($this->config->get('config_ssl') ? $this->config->get('config_ssl') : $this->config->get('config_url'));
-            $result = CCCronRunner::run($this->db, DB_PREFIX, $this->config, DIR_CACHE, $site);
+            $result = CCCronRunner::run($this->db, DB_PREFIX, $this->config, DIR_CACHE, $site, null, true, function ($event, $id) {
+                $this->ccSendReturnMail($event, (int)$id);
+            });
             $this->response->setOutput($result['message'] . "\n" . implode("\n", $result['lines']) . "\n");
         } finally {
             CCErrorGuard::stop();

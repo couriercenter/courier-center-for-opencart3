@@ -16,6 +16,16 @@
   </div>
 
   <div class="container-fluid">
+    {% if success %}
+    <div class="alert alert-success alert-dismissible"><i class="fa fa-check-circle"></i> {{ success|e }}
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+    {% endif %}
+    {% for w in warnings %}
+    <div class="alert alert-warning alert-dismissible"><i class="fa fa-exclamation-triangle"></i> {{ w|e }}
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+    {% endfor %}
     {% if error_warning %}
     <div class="alert alert-danger alert-dismissible"><i class="fa fa-exclamation-circle"></i> {{ error_warning|e }}
       <button type="button" class="close" data-dismiss="alert">&times;</button>
@@ -99,7 +109,12 @@
           <div class="form-group">
             <label class="col-sm-2 control-label">{{ label|e }}</label>
             <div class="col-sm-10">
+              {% if field == 'credential_value' or field == 'api_key' %}
+              <input type="password" name="shipping_courier_center_{{ field|e }}" value="" class="form-control" autocomplete="new-password" placeholder="{{ (attribute(_context, field ~ '_saved') ? '•••••••• αποθηκευμένο — άφησε κενό για να μείνει ίδιο' : '')|e }}" />
+              {% else %}
               <input type="text" name="shipping_courier_center_{{ field|e }}" value="{{ attribute(_context, field)|e }}" class="form-control" autocomplete="off" />
+              {% endif %}
+              {% if field == 'billing_account' %}<p class="help-block">Ο κεντρικός κωδικός (Έδρα). Οι υποκωδικοί δηλώνονται στα «Σημεία αποστολής» παρακάτω.</p>{% endif %}
             </div>
           </div>
           {% endfor %}
@@ -124,6 +139,44 @@
           </div>
           {% endfor %}
 
+          <hr><h4 style="padding-left:15px">📍 Σημεία αποστολής (υποκωδικοί)</h4>
+          <div style="padding:0 15px;">
+            <p class="help-block">Αν το κατάστημα στέλνει και από άλλα σημεία (υποκωδικοί του κεντρικού κωδικού), πρόσθεσέ τα εδώ και πάτα «Test &amp; Auto-fill» σε κάθε γραμμή. Σε κάθε voucher διαλέγεις από ποιο σημείο φεύγει· ο σταθμός του σημείου παίρνει την εντολή παραλαβής. <strong>Χωρίς υποκωδικούς όλα φεύγουν από την Έδρα, όπως πριν.</strong></p>
+            <table class="table table-bordered table-condensed" id="cc-points-table">
+              <thead><tr><th style="width:150px;">Υποκωδικός</th><th style="width:150px;">Όνομα σημείου</th><th style="width:170px;">Χρέωση</th><th>Στοιχεία αποστολέα (από το API)</th><th style="width:150px;"></th></tr></thead>
+              <tbody>
+                {% for i, pt in pickup_points %}
+                <tr class="cc-point-row">
+                  <td><input type="text" class="form-control input-sm cc-pt-code" name="shipping_courier_center_pickup_points[{{ i|e }}][code]" value="{{ pt.code|e }}" placeholder="100-0120-0001"></td>
+                  <td><input type="text" class="form-control input-sm" name="shipping_courier_center_pickup_points[{{ i|e }}][label]" value="{{ pt.label|e }}"></td>
+                  <td><select class="form-control input-sm" name="shipping_courier_center_pickup_points[{{ i|e }}][bill_to]">
+                    <option value="self"{% if pt.bill_to != 'main' %} selected{% endif %}>Στον υποκωδικό</option>
+                    <option value="main"{% if pt.bill_to == 'main' %} selected{% endif %}>Στον κεντρικό κωδικό</option>
+                  </select></td>
+                  <td class="cc-pt-info">
+                    {% for f in ['name', 'address', 'postal', 'city', 'phone'] %}<input type="hidden" class="cc-pt-{{ f|e }}" name="shipping_courier_center_pickup_points[{{ i|e }}][{{ f|e }}]" value="{{ attribute(pt, f)|e }}">{% endfor %}
+                    <span class="cc-pt-text">{% if pt.name %}{{ pt.name|e }} — {{ pt.address|e }}, {{ pt.postal|e }} {{ pt.city|e }}{% if pt.phone %} · {{ pt.phone|e }}{% endif %}{% else %}<em class="text-warning">Χωρίς στοιχεία — πάτα Test &amp; Auto-fill</em>{% endif %}</span>
+                  </td>
+                  <td><button type="button" class="btn btn-info btn-xs cc-pt-autofill"><i class="fa fa-search"></i> Test &amp; Auto-fill</button> <button type="button" class="btn btn-danger btn-xs cc-pt-remove" title="Αφαίρεση"><i class="fa fa-trash"></i></button></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <button type="button" class="btn btn-default btn-sm" id="cc-pt-add"><i class="fa fa-plus"></i> Προσθήκη υποκωδικού</button>
+            <span id="cc-pt-status" style="margin-left:10px; font-style:italic;"></span>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label class="col-sm-2 control-label">Προεπιλεγμένο σημείο</label>
+            <div class="col-sm-10">
+              <select name="shipping_courier_center_default_pickup_point" class="form-control" style="max-width:420px;">
+                {% for pt in points_all %}
+                <option value="{{ pt.is_main ? '' : pt.code|e }}"{% if pt.code == default_pickup_point %} selected{% endif %}>{{ pt.label|e }}{% if pt.code %} ({{ pt.code|e }}){% endif %}</option>
+                {% endfor %}
+              </select>
+              <p class="help-block">Από εδώ φεύγουν η αυτόματη δημιουργία, η απλή μαζική δημιουργία και η προεπιλογή στην παραγγελία. Νέα σημεία εμφανίζονται εδώ μετά την αποθήκευση.</p>
+            </div>
+          </div>
+
           <hr><h4 style="padding-left:15px">Tracking &amp; Email</h4>
 
           <div class="form-group">
@@ -138,7 +191,7 @@
             <label class="col-sm-2 control-label">Tracking σε emails</label>
             <div class="col-sm-10">
               <select name="shipping_courier_center_email_tracking_enabled" class="form-control" style="width:auto">
-                <option value="1"{% if email_tracking_enabled == '1' %} selected{% endif %}>Ενεργό — αποστολή tracking link στον πελάτη</option>
+                <option value="1"{% if email_tracking_enabled == '1' %} selected{% endif %}>Ενεργό — AWB και tracking link μέσα στα emails της παραγγελίας</option>
                 <option value="0"{% if email_tracking_enabled == '0' %} selected{% endif %}>Ανενεργό</option>
               </select>
             </div>
@@ -257,6 +310,62 @@
             </div>
           </div>
 
+          <hr><h4 style="padding-left:15px">↩️ Επιστροφές <small><a href="{{ url_returns|e }}">→ Λίστα αιτημάτων επιστροφής</a></small></h4>
+          <p class="help-block" style="padding:0 15px;">Ο πελάτης ζητά επιστροφή από τη σελίδα της παραγγελίας στον λογαριασμό του (μόνο ολοκληρωμένες παραγγελίες με ενεργό voucher). Η αποστολή επιστροφής δημιουργείται μετά την έγκρισή σου (ή αμέσως, αν απενεργοποιήσεις την έγκριση).</p>
+          {% for key, label in {'enabled': 'Ενεργοποίηση επιστροφών', 'require_approval': 'Απαιτείται έγκριση', 'method_dropoff': 'Παράδοση σε κατάστημα Courier Center (Drop Off)', 'method_boxnow': 'Παράδοση σε BOX NOW locker'} %}
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ label|e }}</label>
+            <div class="col-sm-10">
+              <select name="shipping_courier_center_returns_{{ key|e }}" class="form-control" style="width:auto">
+                <option value="1"{% if attribute(returns, key) %} selected{% endif %}>Ναι</option>
+                <option value="0"{% if not attribute(returns, key) %} selected{% endif %}>Όχι</option>
+              </select>
+              {% if key == 'method_dropoff' %}<p class="help-block">Προεπιλεγμένη μέθοδος. Στοιχεία αποστολέα Drop Off (σταθερά): ΤΚ {{ dropoff_shipper.ZipCode|e }} / {{ dropoff_shipper.Area|e }} / {{ dropoff_shipper.City|e }}.</p>{% endif %}
+              {% if key == 'method_boxnow' %}<p class="help-block">Ο πελάτης διαλέγει μέγεθος θυρίδας: {% for sz in locker_sizes %}{{ sz.label|e }} ({{ sz.dims|e }}){% if not loop.last %}, {% endif %}{% endfor %}. Η παραλαβή από τη διεύθυνση του πελάτη δεν προσφέρεται (δεν υπάρχει επιβεβαιωμένο πεδίο API για το ωράριο).</p>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          <div class="form-group">
+            <label class="col-sm-2 control-label">Προθεσμία (ημέρες)</label>
+            <div class="col-sm-10">
+              <input type="number" min="0" name="shipping_courier_center_returns_window_days" value="{{ returns.window_days|e }}" class="form-control" style="max-width:120px;">
+              <p class="help-block">Ημέρες από την ολοκλήρωση της παραγγελίας. 0 = χωρίς όριο.</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">Βάρος δέματος (kg)</label>
+            <div class="col-sm-10">
+              <input type="text" name="shipping_courier_center_returns_weight" value="{{ returns.weight|e }}" class="form-control" style="max-width:120px;">
+              <p class="help-block">Η επιστροφή δημιουργείται πάντα με ένα τεμάχιο αυτού του βάρους (0.1–30).</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">Λογαριασμοί επιστροφών</label>
+            <div class="col-sm-10">
+              <table class="table table-bordered table-condensed" id="cc-ra-table" style="max-width:640px;">
+                <thead><tr><th>Αρχικός κωδικός (σημείο)</th><th>Κωδικός επιστροφών</th><th style="width:40px;"></th></tr></thead>
+                <tbody>
+                  {% for i, ra in returns.accounts %}
+                  <tr><td><input type="text" class="form-control input-sm" name="shipping_courier_center_returns_accounts[{{ i|e }}][original]" value="{{ ra.original|e }}"></td>
+                    <td><input type="text" class="form-control input-sm" name="shipping_courier_center_returns_accounts[{{ i|e }}][return]" value="{{ ra.return|e }}" placeholder="100-0120-0009"></td>
+                    <td><button type="button" class="btn btn-danger btn-xs cc-ra-remove"><i class="fa fa-trash"></i></button></td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              <button type="button" class="btn btn-default btn-sm" id="cc-ra-add"><i class="fa fa-plus"></i> Προσθήκη αντιστοίχισης</button>
+              <p class="help-block">Αν η επιστροφή πρέπει να πηγαίνει σε άλλον κωδικό από αυτόν που έστειλε την αρχική αποστολή (Έδρα ή υποκωδικός), αντιστοίχισέ τους εδώ. Χωρίς αντιστοίχιση, η επιστροφή πηγαίνει στον αρχικό κωδικό.</p>
+            </div>
+          </div>
+          {% for key, label in {'dropoff_instructions': 'Οδηγίες Drop Off', 'boxnow_instructions': 'Οδηγίες BOX NOW'} %}
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ label|e }}</label>
+            <div class="col-sm-10">
+              <textarea name="shipping_courier_center_returns_{{ key|e }}" rows="2" class="form-control" placeholder="{{ key == 'dropoff_instructions' ? returns_defaults.dropoff|e : returns_defaults.boxnow|e }}">{{ attribute(returns, key)|e }}</textarea>
+              <p class="help-block">Εμφανίζονται στον πελάτη (σελίδα και email) μετά τη δημιουργία της επιστροφής. Κενό = το προεπιλεγμένο κείμενο.</p>
+            </div>
+          </div>
+          {% endfor %}
+
           <hr><h4 style="padding-left:15px">⏱️ Αυτόματη ενημέρωση κατάστασης (cron)</h4>
 
           <div class="form-group">
@@ -308,6 +417,7 @@
 (function () {
   var URLS = {
     autofill: {{ url_autofill|json_encode }},
+    autofillPoint: {{ url_autofillPoint|json_encode }},
     clear: {{ url_clearSettings|json_encode }},
     repair: {{ url_repair|json_encode }},
     cronKey: {{ url_regenerateCronKey|json_encode }},
@@ -354,6 +464,61 @@
       st.textContent = r.warning ? '⚠️ ' + r.warning : '';
       $('cc-autofill-notice').style.display = 'block';
     });
+  });
+
+  // Pickup points (sub-codes): add / remove rows, per-row Test & Auto-fill
+  var ptBody = document.querySelector('#cc-points-table tbody');
+  var ptNext = ptBody.querySelectorAll('tr').length + 1000;
+  function cell(html) { var td = document.createElement('td'); td.innerHTML = html; return td; }
+  $('cc-pt-add').addEventListener('click', function () {
+    var i = ptNext++, n = 'shipping_courier_center_pickup_points[' + i + ']';
+    var tr = document.createElement('tr'); tr.className = 'cc-point-row';
+    tr.appendChild(cell('<input type="text" class="form-control input-sm cc-pt-code" name="' + n + '[code]" placeholder="100-0120-0001">'));
+    tr.appendChild(cell('<input type="text" class="form-control input-sm" name="' + n + '[label]">'));
+    tr.appendChild(cell('<select class="form-control input-sm" name="' + n + '[bill_to]"><option value="self">Στον υποκωδικό</option><option value="main">Στον κεντρικό κωδικό</option></select>'));
+    var info = cell(''); info.className = 'cc-pt-info';
+    ['name', 'address', 'postal', 'city', 'phone'].forEach(function (f) {
+      var h = document.createElement('input'); h.type = 'hidden'; h.className = 'cc-pt-' + f; h.name = n + '[' + f + ']'; info.appendChild(h);
+    });
+    var t = document.createElement('span'); t.className = 'cc-pt-text'; t.innerHTML = '<em class="text-warning">Χωρίς στοιχεία — πάτα Test &amp; Auto-fill</em>'; info.appendChild(t);
+    tr.appendChild(info);
+    tr.appendChild(cell('<button type="button" class="btn btn-info btn-xs cc-pt-autofill"><i class="fa fa-search"></i> Test &amp; Auto-fill</button> <button type="button" class="btn btn-danger btn-xs cc-pt-remove" title="Αφαίρεση"><i class="fa fa-trash"></i></button>'));
+    ptBody.appendChild(tr);
+  });
+  ptBody.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null;
+    if (!b) return;
+    var tr = b.closest('tr');
+    if (b.classList.contains('cc-pt-remove')) { tr.parentNode.removeChild(tr); return; }
+    if (!b.classList.contains('cc-pt-autofill')) return;
+    var code = tr.querySelector('.cc-pt-code').value.trim(), st = $('cc-pt-status');
+    if (!code) { st.style.color = '#a94442'; st.textContent = 'Συμπλήρωσε πρώτα τον υποκωδικό.'; return; }
+    busy(b, true, '...');
+    st.style.color = ''; st.textContent = 'Δημιουργία και ακύρωση test αποστολής για ' + code + '...';
+    post(URLS.autofillPoint, {code: code}).then(function (r) {
+      busy(b, false);
+      if (!r.success) { st.style.color = '#a94442'; st.textContent = '❌ ' + code + ': ' + (r.error || 'Σφάλμα'); return; }
+      var d = r.data, map = {name: d.name, address: d.address, postal: d.postcode, city: d.city, phone: d.phone};
+      Object.keys(map).forEach(function (f) { tr.querySelector('.cc-pt-' + f).value = map[f] || ''; });
+      tr.querySelector('.cc-pt-text').textContent = d.name + ' — ' + d.address + ', ' + d.postcode + ' ' + d.city + (d.phone ? ' · ' + d.phone : '');
+      st.style.color = r.warning ? '#a94442' : '#3c763d';
+      st.textContent = r.warning ? '⚠️ ' + r.warning : '✓ ' + code + ': στοιχεία από το API. Πάτα «Αποθήκευση».';
+    });
+  });
+
+  // Returns account mapping rows
+  var raBody = document.querySelector('#cc-ra-table tbody'), raNext = 1000;
+  $('cc-ra-add').addEventListener('click', function () {
+    var i = raNext++, n = 'shipping_courier_center_returns_accounts[' + i + ']';
+    var tr = document.createElement('tr');
+    tr.appendChild(cell('<input type="text" class="form-control input-sm" name="' + n + '[original]">'));
+    tr.appendChild(cell('<input type="text" class="form-control input-sm" name="' + n + '[return]" placeholder="100-0120-0009">'));
+    tr.appendChild(cell('<button type="button" class="btn btn-danger btn-xs cc-ra-remove"><i class="fa fa-trash"></i></button>'));
+    raBody.appendChild(tr);
+  });
+  raBody.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.cc-ra-remove') : null;
+    if (b) { var tr = b.closest('tr'); tr.parentNode.removeChild(tr); }
   });
 
   // Copy buttons (cron)

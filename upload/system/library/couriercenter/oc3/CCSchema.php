@@ -21,7 +21,10 @@ class CCSchema {
             'courier_center_order_list'    => array('admin/view/sale/order_list/after', 'extension/shipping/courier_center/order_list/injectColumns', 0),
             'courier_center_update_notice' => array('admin/view/common/header/after', 'extension/shipping/courier_center/update/notice', 0),
             'courier_center_auto_create'   => array('catalog/model/checkout/order/addOrderHistory/after', 'extension/shipping/courier_center/autocreate/autoCreate', 50),
-            'courier_center_email'         => array('catalog/model/checkout/order/addOrderHistory/after', 'extension/shipping/courier_center/email/sendTracking', 99),
+            'courier_center_mail_add'      => array('catalog/view/mail/order_add/after', 'extension/shipping/courier_center/email/orderAdd', 0),
+            'courier_center_mail_edit'     => array('catalog/view/mail/order_edit/after', 'extension/shipping/courier_center/email/orderEdit', 0),
+            'courier_center_returns_menu'  => array('admin/view/common/column_left/before', 'extension/shipping/courier_center/returns/menu', 0),
+            'courier_center_returns_order' => array('catalog/view/account/order_info/after', 'extension/shipping/courier_center/returns/orderInfo', 0),
             'courier_center_boxnow_widget' => array('catalog/view/common/footer/after', 'extension/shipping/courier_center/boxnow/widget', 0),
             'courier_center_boxnow_order'  => array('catalog/model/checkout/order/addOrder/after', 'extension/shipping/courier_center/boxnow/saveToOrder', 0),
             'courier_center_boxnow_clear'  => array('catalog/controller/checkout/success/before', 'extension/shipping/courier_center/boxnow/clearSession', 0),
@@ -39,7 +42,8 @@ class CCSchema {
 
     public static function removeEvents($db, $prefix) {
         $codes = array();
-        foreach (array_keys(self::events()) as $code) {
+        // + the codes older versions registered (1.0.0: the separate tracking email)
+        foreach (array_merge(array_keys(self::events()), array('courier_center_email')) as $code) {
             $codes[] = "'" . $db->escape($code) . "'";
         }
         $db->query("DELETE FROM `" . $prefix . "event` WHERE `code` IN (" . implode(', ', $codes) . ")");

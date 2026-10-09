@@ -28,6 +28,8 @@
         <tr><td>Tracking:</td><td>{{ shipment.tracking_number|e }}</td></tr>
         {% endif %}
         <tr><td>Υπηρεσία:</td><td>{{ service_label|e }}</td></tr>
+        {% if point_info %}<tr><td>Σημείο:</td><td>📍 {{ point_info|e }}</td></tr>{% endif %}
+        {% if shipment.boxnow_parcel_id %}<tr><td>BOX NOW Parcel ID:</td><td><strong>{{ shipment.boxnow_parcel_id|e }}</strong></td></tr>{% endif %}
       </table>
       {% if shipment.is_boxnow == '1' %}
       <div class="cc-locker-box">
@@ -66,6 +68,17 @@
     <p style="font-size:12px; color:#666;">Μπορείς να δημιουργήσεις νέο voucher.</p>
     {% endif %}
 
+    {% if consignee %}<p style="font-size:12px; color:#555;">👤 Παραλήπτης: {{ consignee|e }}</p>{% endif %}
+    {% if has_points %}
+    <div class="cc-form-section">
+      <span class="cc-label">📍 Σημείο αποστολής:</span>
+      <select id="cc-pickup-point" class="form-control input-sm">
+        {% for pt in point_options %}
+        <option value="{{ pt.code|e }}"{% if pt.code == selected_point %} selected{% endif %}>{{ pt.label|e }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
     {% if locker_id and delivery_mode == 'pick' %}
     <div class="cc-locker-box" style="font-size:13px;">
       <strong>📦 BOX NOW Locker (επιλεγμένο από πελάτη)</strong><br>
@@ -111,6 +124,30 @@
     {% endif %}
   {% endif %}
   <div class="cc-msg" style="margin-top:10px;"></div>
+
+  {% if returns %}
+  <hr>
+  <h4>↩️ Επιστροφές πελάτη</h4>
+  <div id="cc-ret-msg"></div>
+  {% for r in returns %}
+  <div class="cc-form-section" data-id="{{ r.id|e }}">
+    <strong>#{{ r.id|e }} — {{ r.status_label|e }}</strong> <small class="text-muted">{{ r.created_at|e }}</small><br>
+    <small>{{ r.method_label|e }}{% if r.locker_label %} · Θυρίδα: {{ r.locker_label|e }}{% endif %} · {{ r.items|e }}</small>
+    {% if r.reason %}<br><small class="text-muted">«{{ r.reason|e }}»</small>{% endif %}
+    {% if r.return_awb %}<br><small>AWB επιστροφής: <strong>{{ r.return_awb|e }}</strong>{% if r.rsn %} · Κωδικός BOX NOW: <strong>{{ r.rsn|e }}</strong>{% endif %}{% if r.tracking %} · 📍 {{ r.tracking|e }}{% endif %}</small>{% endif %}
+    {% if r.last_error %}<br><small class="text-danger">{{ r.last_error|e }}</small>{% endif %}
+    <div style="margin-top:6px;">
+      {% if r.can_approve %}<button type="button" class="btn btn-success btn-xs" data-cc-ret="approve"><i class="fa fa-check"></i> Έγκριση</button>{% endif %}
+      {% if r.can_create %}<button type="button" class="btn btn-primary btn-xs" data-cc-ret="create"><i class="fa fa-truck"></i> Δημιουργία αποστολής</button>{% endif %}
+      {% if r.can_verify %}<button type="button" class="btn btn-warning btn-xs" data-cc-ret="verify"><i class="fa fa-search"></i> Έλεγχος ύπαρξης αποστολής</button>{% endif %}
+      {% if r.can_track %}<button type="button" class="btn btn-info btn-xs" data-cc-ret="track"><i class="fa fa-refresh"></i> Tracking</button>{% endif %}
+      {% if r.can_reject %}<button type="button" class="btn btn-danger btn-xs" data-cc-ret="reject"><i class="fa fa-times"></i> Απόρριψη</button>{% endif %}
+      {% if r.print_url %}<a href="{{ r.print_url|e }}" target="_blank" class="btn btn-default btn-xs"><i class="fa fa-print"></i> Voucher επιστροφής</a>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {{ returns_js|raw }}
+  {% endif %}
 </div>
 <script>
 (function () {
@@ -141,6 +178,8 @@
   }
   function reloadOnTab() { window.location.hash = 'cc-tab'; window.location.reload(); }
   function create(params) {
+    var pp = panel.querySelector('#cc-pickup-point');
+    if (pp) { params.pickup_point = pp.value; }
     post(URLS.create, params, function (r) {
       if (r.success) { reloadOnTab(); return; }
       if (r.needs_override) { if (confirm(r.error)) { params.override = 1; create(params); } return; }

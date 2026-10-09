@@ -276,6 +276,7 @@ class CCVoucherService {
         if ($order_id <= 0) {
             return ['success' => false, 'error' => 'Παραγγελία δε βρέθηκε', 'stage' => 'validation'];
         }
+        CCDbSchema::ensureOnce($this->db, $this->prefix); // files updated without re-install: new tables / columns
         $lock = $this->lock();
         $name = CCLock::voucherName($order_id);
         if (!$lock->acquire($name)) {

@@ -19,3 +19,40 @@ function cc_mailpit_find($subject) {
     }
     return null;
 }
+
+/** Decoded text of every stored message (local sink files; base64 parts decoded). @return string[] */
+function cc_mail_bodies() {
+    $out = array();
+    foreach (glob(cc_state_dir() . '/mail/*.json') ?: array() as $f) {
+        $m = json_decode((string)file_get_contents($f), true);
+        $raw = isset($m['Raw']) ? (string)$m['Raw'] : '';
+        $text = $raw;
+        if (preg_match_all('/(?:^[A-Za-z0-9+\/=]{16,}\r?\n)+/m', $raw, $mm)) {
+            foreach ($mm[0] as $chunk) {
+                $text .= "\n" . base64_decode(preg_replace('/\s+/', '', $chunk));
+            }
+        }
+        $out[] = (isset($m['Subject']) ? $m['Subject'] : '') . "\n" . $text;
+    }
+    return $out;
+}
+
+/** Is there a message whose (decoded) body contains every needle? Waits up to 5 s. */
+function cc_mail_with(array $needles) {
+    for ($i = 0; $i < 10; $i++) {
+        foreach (cc_mail_bodies() as $b) {
+            $all = true;
+            foreach ($needles as $n) {
+                if (strpos($b, $n) === false) {
+                    $all = false;
+                    break;
+                }
+            }
+            if ($all) {
+                return true;
+            }
+        }
+        usleep(500000);
+    }
+    return false;
+}

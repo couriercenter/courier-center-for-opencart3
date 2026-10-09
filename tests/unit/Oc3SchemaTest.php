@@ -40,10 +40,13 @@ function test_oc3_schema_adds_only_missing_columns() {
 }
 function test_oc3_schema_events_match_the_spec() {
     $events = CCSchema::events();
-    assert_count(8, $events);
+    assert_count(11, $events);
     assert_same(array('admin/view/sale/order_info/before', 'extension/shipping/courier_center/order/orderTab', 0), $events['courier_center_order_panel']);
     assert_same(array('catalog/model/checkout/order/addOrderHistory/after', 'extension/shipping/courier_center/autocreate/autoCreate', 50), $events['courier_center_auto_create']);
-    assert_same(array('catalog/model/checkout/order/addOrderHistory/after', 'extension/shipping/courier_center/email/sendTracking', 99), $events['courier_center_email']);
+    assert_same(array('catalog/view/mail/order_add/after', 'extension/shipping/courier_center/email/orderAdd', 0), $events['courier_center_mail_add']);
+    assert_same(array('catalog/view/mail/order_edit/after', 'extension/shipping/courier_center/email/orderEdit', 0), $events['courier_center_mail_edit']);
+    assert_same(array('catalog/view/account/order_info/after', 'extension/shipping/courier_center/returns/orderInfo', 0), $events['courier_center_returns_order']);
+    assert_false(isset($events['courier_center_email']), '1.1.0: no separate tracking email');
     assert_same(array('catalog/view/common/footer/after', 'extension/shipping/courier_center/boxnow/widget', 0), $events['courier_center_boxnow_widget']);
     assert_same(array('catalog/controller/checkout/success/before', 'extension/shipping/courier_center/boxnow/clearSession', 0), $events['courier_center_boxnow_clear']);
     foreach ($events as $code => $e) {
@@ -59,7 +62,8 @@ function test_oc3_schema_reregisters_only_our_events() {
     assert_contains("'courier_center_order_panel'", $del[0]);
     assert_not_contains('%', $del[0]);
     $ins = $db->matching('/INSERT INTO `oc_event`/');
-    assert_count(8, $ins);
+    assert_count(11, $ins);
+    assert_contains("'courier_center_email'", $del[0], 'the 1.0.0 email event is removed on repair');
     assert_contains("`status` = '1'", $ins[0]);
     CCSchema::removeEvents($db, 'oc_');
     assert_count(2, $db->matching('/DELETE FROM `oc_event`/'));

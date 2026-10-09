@@ -22,8 +22,11 @@ return function (SmokeContext $c) {
     @unlink(cc_state_dir() . '/sink.log');
     $s->adminGet('extension/extension/shipping/install', array('extension' => 'courier_center'));
     $c->ok((bool)$s->row("SELECT 1 AS x FROM `{p}extension` WHERE `type` = 'shipping' AND `code` = 'courier_center'"), 'extension installed');
-    $c->ok(count($s->rows("SELECT `code` FROM `{p}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 8, '8 events registered (spec 5.4)');
-    $c->ok((bool)$s->rows("SHOW TABLES LIKE '" . $s->env['prefix'] . "cc_shipments'"), 'cc_shipments table');
+    $c->ok(count($s->rows("SELECT `code` FROM `{p}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 11, '11 events registered (1.1.0)');
+    $c->ok(!$s->rows("SELECT `code` FROM `{p}event` WHERE `code` = 'courier_center_email'"), 'the 1.0.0 separate tracking email event is gone');
+    foreach (array('cc_shipments', 'cc_locks', 'cc_return_requests') as $t) {
+        $c->ok((bool)$s->rows("SHOW TABLES LIKE '" . $s->env['prefix'] . $t . "'"), $t . ' table');
+    }
     $key = $s->row("SELECT `value` FROM `{p}setting` WHERE `key` = 'shipping_courier_center_cron_key' AND `code` = 'courier_center_state'");
     $c->ok(isset($key['value']) && preg_match('/^[a-f0-9]{32}$/', $key['value']), 'cron key created');
     $c->data['cron_key'] = isset($key['value']) ? $key['value'] : '';
@@ -62,6 +65,22 @@ return function (SmokeContext $c) {
     $c->ok($save['status'] === 302 && strpos($save['location'], 'marketplace/extension') !== false, 'settings saved');
     $key2 = $s->row("SELECT `value` FROM `{p}setting` WHERE `key` = 'shipping_courier_center_cron_key'");
     $c->ok(isset($key2['value']) && $key2['value'] === $c->data['cron_key'], 'Save keeps the cron key (Review Focus 4)');
+
+    // 1.1.0: secrets never sent back; an empty field keeps them; a tracking URL without {{tracking}} is replaced
+    $cr = cc_oc4_credentials();
+    $page = $s->adminGet('extension/shipping/courier_center')['body'];
+    $c->ok(strpos($page, $cr['credential_value']) === false && strpos($page, $cr['api_key']) === false, 'settings page does not contain the credential value / API key');
+    $c->ok(strpos($page, 'type="password" name="shipping_courier_center_credential_value"') !== false, 'credential value is a password field');
+    $again = $fields;
+    $again['shipping_courier_center_credential_value'] = '';
+    $again['shipping_courier_center_api_key'] = '';
+    $again['shipping_courier_center_tracking_url'] = 'https://example.com/track';
+    $save2 = $s->adminPost('extension/shipping/courier_center', $again);
+    $cv = $s->row("SELECT `value` FROM `{p}setting` WHERE `key` = 'shipping_courier_center_credential_value'");
+    $tu = $s->row("SELECT `value` FROM `{p}setting` WHERE `key` = 'shipping_courier_center_tracking_url'");
+    $c->ok(isset($cv['value']) && html_entity_decode($cv['value'], ENT_QUOTES, 'UTF-8') === $cr['credential_value'], 'empty secret field keeps the saved value');
+    $c->ok(isset($tu['value']) && strpos($tu['value'], '{{tracking}}') !== false, 'tracking URL without {{tracking}} → default');
+    $c->ok($save2['status'] === 302 && strpos($save2['location'], 'extension/shipping/courier_center') !== false, 'with a warning the save stays on the settings page');
 
     // 5. Test & Auto-fill: real API test shipment, voided by the endpoint; other settings untouched
     $af = $s->adminJson('extension/shipping/courier_center/autofill');

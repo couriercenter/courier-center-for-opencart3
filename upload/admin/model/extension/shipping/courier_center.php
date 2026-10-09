@@ -59,8 +59,14 @@ class ModelExtensionShippingCourierCenter extends Model {
         $this->db->query("UPDATE `" . DB_PREFIX . "cc_shipments` SET `is_boxnow` = 0, `locker_id` = '', `locker_code` = '', `locker_name` = '' WHERE `order_id` = '" . (int)$order_id . "'");
     }
 
-    public function countShipmentsForDate($date) {
-        $q = $this->db->query("SELECT COUNT(*) AS total FROM `" . DB_PREFIX . "cc_shipments` WHERE DATE(`created_at`) = '" . $this->db->escape($date) . "' AND `voucher_number` != '' AND `is_voided` = 0");
+    /** Active vouchers of a day; with $point only that pickup point's (the main one also counts vouchers from before 1.1.0). */
+    public function countShipmentsForDate($date, $point = '', $is_main = false) {
+        $sql = "SELECT COUNT(*) AS total FROM `" . DB_PREFIX . "cc_shipments` WHERE DATE(`created_at`) = '" . $this->db->escape($date) . "' AND `voucher_number` != '' AND `is_voided` = 0";
+        if ($point !== '') {
+            $p = $this->db->escape($point);
+            $sql .= $is_main ? " AND (`pickup_point` = '" . $p . "' OR `pickup_point` = '' OR `pickup_point` IS NULL)" : " AND `pickup_point` = '" . $p . "'";
+        }
+        $q = $this->db->query($sql);
         return (int)($q->row['total'] ?? 0);
     }
 

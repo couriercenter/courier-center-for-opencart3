@@ -69,9 +69,9 @@ return function (SmokeContext $c) {
     // 4. Admin: the "auto" order goes to "Δημιουργία BOX NOW" (real API).
     $s->exec("UPDATE `{p}order` SET `order_status_id` = 1 WHERE `order_id` = '$auto'");
     $s->login();
-    $r = $s->adminJson('extension/shipping/courier_center/bulkCreateBoxnow', array('order_ids' => (string)$auto));
+    $r = $s->adminJson('extension/shipping/courier_center/bulkCreate', array('order_ids' => (string)$auto));
     $msg = isset($r['message']) ? str_replace("\n", ' ', $r['message']) : json_encode($r, JSON_UNESCAPED_UNICODE);
-    $c->ok(!empty($r['success']) && strpos($msg, 'Όχι BOX NOW') === false, 'bulk BOX NOW took the auto order: ' . $msg);
+    $c->ok(!empty($r['success']) && strpos($msg, 'BOX NOW: 1') !== false, 'bulk create detects the BOX NOW order: ' . $msg);
     $row = $s->row("SELECT `voucher_number` FROM `{p}cc_shipments` WHERE `order_id` = '$auto'");
     $c->track(isset($row['voucher_number']) ? $row['voucher_number'] : '');
 };

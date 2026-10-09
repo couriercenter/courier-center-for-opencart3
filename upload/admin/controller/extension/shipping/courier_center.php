@@ -8,7 +8,12 @@
 require_once DIR_SYSTEM . 'library/couriercenter/oc3/CCControllerTrait.php';
 
 use Opencart\Extension\Couriercenter\Library\CCApi;
+use Opencart\Extension\Couriercenter\Library\CCAutofill;
+use Opencart\Extension\Couriercenter\Library\CCDbSchema;
 use Opencart\Extension\Couriercenter\Library\CCPdfScaler;
+use Opencart\Extension\Couriercenter\Library\CCPickupPoints;
+use Opencart\Extension\Couriercenter\Library\CCReturnsRules;
+use Opencart\Extension\Couriercenter\Library\CCReturnsSettings;
 use Opencart\Extension\Couriercenter\Library\CCStatusTracker;
 use Opencart\Extension\Couriercenter\Oc3\CCErrorGuard;
 use Opencart\Extension\Couriercenter\Library\CCVoucherService;
@@ -21,6 +26,8 @@ class ControllerExtensionShippingCourierCenter extends Controller {
     use \Opencart\Extension\Couriercenter\Oc3\CCControllerTrait;
 
     const ROUTE = 'extension/shipping/courier_center';
+    const SECRET_FIELDS = array('credential_value', 'api_key');
+    const DEFAULT_TRACKING_URL = 'https://www.courier.gr/track/result?tracknr={{tracking}}';
 
     private $error = array();
     private $prefix = 'shipping_courier_center_';
@@ -37,16 +44,31 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         $this->load->model('setting/setting');
 
         if ($this->request->server['REQUEST_METHOD'] == 'POST' && $this->validate()) {
-            $this->model_setting_setting->editSetting('shipping_courier_center', $this->request->post);
+            $post = $this->request->post;
+            $warnings = $this->prepareSettingsPost($post);
+            $this->model_setting_setting->editSetting('shipping_courier_center', $post);
             $this->session->data['success'] = $this->language->get('text_success');
+            if ($warnings) {
+                // Stay on the page so the merchant sees what was ignored.
+                $this->session->data['cc_warnings'] = $warnings;
+                $this->response->redirect($this->ccLink(self::ROUTE));
+            }
             $this->response->redirect($this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=shipping', true));
         }
+        CCDbSchema::ensureOnce($this->db, DB_PREFIX);
 
         $state = $this->ccState();
         CCTelemetry::ping($state, $this->ccSiteUrl());
 
         $data = array();
         $data['error_warning'] = isset($this->error['warning']) ? $this->error['warning'] : '';
+        $data['success'] = '';
+        $data['warnings'] = array();
+        if (isset($this->session->data['cc_warnings'])) {
+            $data['warnings'] = (array)$this->session->data['cc_warnings'];
+            $data['success'] = isset($this->session->data['success']) ? $this->session->data['success'] : '';
+            unset($this->session->data['cc_warnings'], $this->session->data['success']);
+        }
         $data['breadcrumbs'] = array(
             array('text' => $this->language->get('text_home'), 'href' => $this->ccLink('common/dashboard')),
             array('text' => $this->language->get('text_extension'), 'href' => $this->ccLink('marketplace/extension', 'type=shipping')),
@@ -69,6 +91,11 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         }
         if ($data['tracking_url'] === '') {
             $data['tracking_url'] = 'https://www.courier.gr/track/result?tracknr={{tracking}}';
+        }
+        // Secrets are never sent back to the browser: an empty field keeps the saved value.
+        foreach (self::SECRET_FIELDS as $field) {
+            $data[$field . '_saved'] = trim((string)$this->config->get($this->prefix . $field)) !== '';
+            $data[$field] = '';
         }
         if ($data['email_tracking_enabled'] === '') {
             $data['email_tracking_enabled'] = '1';
@@ -98,6 +125,30 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         $hm = $this->config->get($this->prefix . 'handled_shipping_methods');
         $data['handled_shipping_methods'] = is_array($hm) ? $hm : array();
 
+        // Pickup points (sub-codes) and the default point
+        $points = CCPickupPoints::fromConfig($this->config);
+        $data['pickup_points'] = $points->subs();
+        $data['points_all'] = $points->all();
+        $data['default_pickup_point'] = $points->defaultCode();
+
+        // Returns
+        $rs = new CCReturnsSettings($this->config);
+        $data['returns'] = array(
+            'enabled'              => $rs->enabled(),
+            'require_approval'     => $rs->requireApproval(),
+            'window_days'          => $rs->windowDays(),
+            'method_dropoff'       => in_array(CCReturnsRules::METHOD_DROPOFF, $rs->enabledMethods(), true),
+            'method_boxnow'        => in_array(CCReturnsRules::METHOD_BOXNOW, $rs->enabledMethods(), true),
+            'weight'               => $rs->weight(),
+            'accounts'             => $rs->accountRows(),
+            'dropoff_instructions' => $this->ccText($this->config->get('shipping_courier_center_returns_dropoff_instructions')),
+            'boxnow_instructions'  => $this->ccText($this->config->get('shipping_courier_center_returns_boxnow_instructions')),
+        );
+        $data['returns_defaults'] = array('dropoff' => CCReturnsSettings::DEFAULT_DROPOFF_TEXT, 'boxnow' => CCReturnsSettings::DEFAULT_BOXNOW_TEXT);
+        $data['locker_sizes'] = CCReturnsRules::LOCKER_SIZES;
+        $data['dropoff_shipper'] = CCReturnsRules::DROPOFF_SHIPPER;
+        $data['url_returns'] = $this->ccLink(self::ROUTE . '/returns');
+
         $data['version'] = CCVersion::get();
         $data['cron_last_run'] = $state->get('cron_last_run', '') ?: '—';
         $data['cron_next_run'] = $state->get('cron_next_run', '') ?: '—';
@@ -106,7 +157,7 @@ class ControllerExtensionShippingCourierCenter extends Controller {
 
         $data['action'] = $this->ccLink(self::ROUTE);
         $data['cancel'] = $this->ccLink('marketplace/extension', 'type=shipping');
-        foreach (array('autofill', 'clearSettings', 'repair', 'regenerateCronKey') as $method) {
+        foreach (array('autofill', 'autofillPoint', 'clearSettings', 'repair', 'regenerateCronKey') as $method) {
             $data['url_' . $method] = $this->ccLink(self::ROUTE . '/' . $method);
         }
         $data['url_manifest'] = $this->ccLink(self::ROUTE . '/manifest');
@@ -172,44 +223,65 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         }
 
         $api = new CCApi($creds['user_alias'], $creds['credential_value'], $creds['api_key'], $creds['billing_account']);
-        $create = $api->create_shipment($this->autofillPayload($creds));
-        if (isset($create['success']) && $create['success'] === false) {
-            $this->ccJson(array('success' => false, 'error' => 'Βήμα 1 — ' . (isset($create['error']) ? $create['error'] : 'Αποτυχία δημιουργίας test αποστολής')));
+        $r = CCAutofill::fetch($api, $this->ccContext($creds), $creds['billing_account']);
+        if (!$r['ok'] && empty($r['account_ok'])) {
+            $this->ccJson(array('success' => false, 'error' => $r['error']));
             return;
         }
-        $awb = (string)($create['ShipmentNumber'] ?? $create['VoucherNumber'] ?? $create['AwbNumber'] ?? '');
-        if ($awb === '') {
-            $this->ccJson(array('success' => false, 'error' => 'Το API δεν επέστρεψε αριθμό για την test αποστολή.'));
-            return;
-        }
-        $details = $api->get_shipment_details($awb);
-        $shipper = $details['ShipmentDetails'][0]['ShipmentInfo']['Shipper'] ?? array();
-        $found = array(
-            'shipper_name'     => trim((string)($shipper['CompanyName'] ?? '')),
-            'shipper_address'  => trim((string)($shipper['Address'] ?? '')),
-            'shipper_postcode' => trim((string)($shipper['ZipCode'] ?? '')),
-            'shipper_city'     => trim((string)($shipper['City'] ?? '')),
-            'shipper_phone'    => trim((string)($shipper['Phones'] ?? '')),
-        );
-        $voided = $api->void_shipment($awb) === true;
-
         foreach ($creds as $k => $v) {
             CCState::upsertSetting($this->db, DB_PREFIX, 'shipping_courier_center', $this->prefix . $k, $v);
         }
-        foreach ($found as $k => $v) {
-            if ($v !== '') {
-                CCState::upsertSetting($this->db, DB_PREFIX, 'shipping_courier_center', $this->prefix . $k, $v);
-            }
-        }
-        if (implode('', $found) === '') {
-            $this->ccJson(array('success' => false, 'error' => 'Τα credentials δουλεύουν, αλλά το API δεν επέστρεψε στοιχεία αποστολέα. Συμπλήρωσέ τα χειροκίνητα.'));
+        if (!$r['ok']) {
+            $this->ccJson(array('success' => false, 'error' => $r['error']));
             return;
         }
+        $found = array();
+        foreach (array('name', 'address', 'postcode', 'city', 'phone') as $k) {
+            $found['shipper_' . $k] = $r['data'][$k];
+            if ($r['data'][$k] !== '') {
+                CCState::upsertSetting($this->db, DB_PREFIX, 'shipping_courier_center', $this->prefix . 'shipper_' . $k, $r['data'][$k]);
+            }
+        }
         $out = array('success' => true) + $found;
-        if (!$voided) {
-            $out['warning'] = 'Η test αποστολή ' . $awb . ' δεν ακυρώθηκε αυτόματα. Ακύρωσέ την από το Courier Center.';
+        if ($r['warning'] !== '') {
+            $out['warning'] = $r['warning'];
         }
         $this->ccJson($out);
+    }
+
+    /** Test & Auto-fill of ONE pickup point (sub-code): returns its sender data, writes nothing. */
+    public function autofillPoint() {
+        if (!$this->ccJsonStart()) {
+            return;
+        }
+        if (!$this->ccCanModify()) {
+            $this->ccDeny();
+            return;
+        }
+        $code = trim($this->ccText(isset($this->request->post['code']) ? $this->request->post['code'] : ''));
+        $creds = array();
+        foreach (array('user_alias', 'credential_value', 'api_key', 'billing_account') as $k) {
+            $creds[$k] = trim($this->ccText($this->config->get($this->prefix . $k)));
+        }
+        if ($creds['user_alias'] === '' || $creds['credential_value'] === '' || $creds['api_key'] === '') {
+            $this->ccJson(array('success' => false, 'error' => 'Αποθήκευσε πρώτα τα API credentials (και κάνε Test & Auto-fill στον κεντρικό κωδικό).'));
+            return;
+        }
+        if ($code !== '' && $code === $creds['billing_account']) {
+            $this->ccJson(array('success' => false, 'error' => 'Αυτός είναι ο κεντρικός κωδικός· πρόσθεσε μόνο υποκωδικούς.'));
+            return;
+        }
+        $api = new CCApi($creds['user_alias'], $creds['credential_value'], $creds['api_key'], $code);
+        $r = CCAutofill::fetch($api, $this->ccContext($creds), $code);
+        if (!$r['ok']) {
+            $this->ccJson(array('success' => false, 'error' => $r['error']));
+            return;
+        }
+        $this->ccJson(array('success' => true, 'data' => $r['data'], 'warning' => $r['warning']));
+    }
+
+    private function ccContext(array $creds) {
+        return array('UserAlias' => $creds['user_alias'], 'CredentialValue' => $creds['credential_value'], 'ApiKey' => $creds['api_key']);
     }
 
     public function clearSettings() {
@@ -261,7 +333,7 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             return;
         }
         if (empty($p['override']) && !$svc->isHandledOrder($order)) {
-            $name = $this->ccText($order['shipping_method'] ?? '');
+            $name = CCVoucherService::shippingName($order);
             $this->ccJson(array('success' => false, 'needs_override' => true,
                 'error' => 'Η παραγγελία χρησιμοποιεί μέθοδο αποστολής «' . ($name !== '' ? $name : '—') . '» που δεν διαχειρίζεται το plugin. Δημιουργία αποστολής στην Courier Center ούτως ή άλλως;'));
             return;
@@ -274,20 +346,16 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             'locker_id'     => $this->ccText($p['locker_id'] ?? ''),
             'locker_code'   => $this->ccText($p['locker_code'] ?? ''),
             'locker_name'   => $this->ccText($p['locker_name'] ?? ''),
+            'pickup_point'  => trim($this->ccText($p['pickup_point'] ?? '')),
             'mode'          => 'manual',
         )));
     }
 
+    /**
+     * Bulk create (Next Day): BOX NOW is detected per order from its checkout choice. POST order_ids,
+     * pickup_point ('' = the default point).
+     */
     public function bulkCreate() {
-        $this->bulkCreateRun(false);
-    }
-
-    public function bulkCreateBoxnow() {
-        $this->bulkCreateRun(true);
-    }
-
-    /** Each button handles only its own type, like the bulk printing (OC4 ccRunBulkCreate). */
-    private function bulkCreateRun($boxnow_only) {
         @set_time_limit(0);
         if (!$this->ccJsonStart()) {
             return;
@@ -302,7 +370,12 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             return;
         }
         $svc = $this->ccService();
-        $c = array('success' => 0, 'failed' => 0, 'skipped' => 0, 'skipped_type' => 0, 'skipped_unmanaged' => 0, 'errors' => array());
+        $point_code = trim($this->ccText($this->request->post['pickup_point'] ?? ''));
+        if ($point_code !== '' && $svc->points()->get($point_code) === null) {
+            $this->ccJson(array('success' => false, 'error' => 'Το σημείο αποστολής ' . $point_code . ' δεν υπάρχει πια στις ρυθμίσεις. Ανανέωσε τη σελίδα.'));
+            return;
+        }
+        $c = array('success' => 0, 'failed' => 0, 'skipped' => 0, 'boxnow' => 0, 'skipped_unmanaged' => 0, 'errors' => array());
         foreach ($ids as $order_id) {
             $existing = $svc->getShipment($order_id);
             if (!empty($existing['voucher_number']) && empty($existing['is_voided'])) {
@@ -320,29 +393,31 @@ class ControllerExtensionShippingCourierCenter extends Controller {
                 continue;
             }
             $bn = CCVoucherService::boxnowFromOrder($order);
-            if ($boxnow_only !== !empty($bn)) {
-                $c['skipped_type']++;
-                continue;
-            }
             try {
-                $res = $svc->createForOrder($order, array_merge(array('service_type' => 'next_day', 'mode' => 'manual'), $bn));
+                $res = $svc->createForOrder($order, array_merge(array('service_type' => 'next_day', 'mode' => 'bulk', 'pickup_point' => $point_code), $bn));
             } catch (\Throwable $e) {
                 $res = array('success' => false, 'error' => $e->getMessage());
             }
             if (!empty($res['success'])) {
                 $c['success']++;
+                if ($bn) {
+                    $c['boxnow']++;
+                }
+            } elseif (isset($res['stage']) && $res['stage'] === 'exists') {
+                $c['skipped']++;
             } else {
                 $c['failed']++;
                 $c['errors'][] = '#' . $order_id . ': ' . ($res['error'] ?? 'Άγνωστο σφάλμα');
             }
             usleep(250000);
         }
-        $msg = ($boxnow_only ? '📦 BOX NOW — ' : '') . 'Σύνολο: ' . count($ids) . ' | ✅ Δημιουργήθηκαν: ' . $c['success'];
+        $point = $svc->points()->get($point_code !== '' ? $point_code : $svc->points()->defaultCode());
+        $msg = 'Σύνολο: ' . count($ids) . ' | ✅ Δημιουργήθηκαν: ' . $c['success'] . ($c['boxnow'] ? ' (από αυτά BOX NOW: ' . $c['boxnow'] . ')' : '');
+        if ($svc->points()->hasSubs() && $point) {
+            $msg .= ' | 📍 Σημείο: ' . CCPickupPoints::label($point);
+        }
         if ($c['skipped']) {
             $msg .= ' | ⏭️ Έχουν ήδη voucher: ' . $c['skipped'];
-        }
-        if ($c['skipped_type']) {
-            $msg .= $boxnow_only ? ' | ➡️ Όχι BOX NOW (χρησ. «Δημιουργία Vouchers»): ' . $c['skipped_type'] : ' | 📦 BOX NOW (χρησ. «Δημιουργία BOX NOW»): ' . $c['skipped_type'];
         }
         if ($c['skipped_unmanaged']) {
             $msg .= ' | 🚫 Μη διαχειρίσιμη μέθοδος: ' . $c['skipped_unmanaged'];
@@ -374,12 +449,17 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         $tracker = $svc->tracker();
         $updated = 0;
         $skipped = 0;
+        $recent = 0;
         $failed = 0;
         $errors = array();
         foreach ($ids as $order_id) {
             $shipment = $svc->getShipment($order_id);
             if (empty($shipment['voucher_number']) || !empty($shipment['is_voided'])) {
                 $skipped++;
+                continue;
+            }
+            if (CCStatusTracker::wait_minutes($shipment) > 0) {
+                $recent++; // same 60-minute limit as the order panel and the cron
                 continue;
             }
             $r = $tracker->refresh($shipment, 'Bulk');
@@ -394,6 +474,9 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         $msg = 'Σύνολο: ' . count($ids) . ' | 🔄 Ενημερώθηκαν: ' . $updated;
         if ($skipped) {
             $msg .= ' | ⏭️ Χωρίς voucher: ' . $skipped;
+        }
+        if ($recent) {
+            $msg .= ' | ⏱️ Ενημερώθηκαν την τελευταία ώρα: ' . $recent;
         }
         if ($failed) {
             $msg .= ' | ❌ Απέτυχαν: ' . $failed;
@@ -412,26 +495,8 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             $this->ccDeny();
             return;
         }
-        $order_id = (int)($this->request->post['order_id'] ?? 0);
-        $svc = $this->ccService();
-        $shipment = $svc->getShipment($order_id);
-        if (empty($shipment['voucher_number'])) {
-            $this->ccJson(array('success' => false, 'error' => 'Δεν υπάρχει αποστολή για ακύρωση'));
-            return;
-        }
-        if (!empty($shipment['is_voided'])) {
-            $this->ccJson(array('success' => false, 'error' => 'Η αποστολή έχει ήδη ακυρωθεί.'));
-            return;
-        }
-        $result = $svc->api()->void_shipment($shipment['voucher_number']);
-        if ($result !== true) {
-            $this->ccJson(array('success' => false, 'error' => is_array($result) && isset($result['error']) ? $result['error'] : 'Αποτυχία ακύρωσης'));
-            return;
-        }
-        $this->load->model('extension/shipping/courier_center');
-        $this->model_extension_shipping_courier_center->voidShipment($order_id);
-        $svc->history()->add($order_id, '❌ Courier Center: Αποστολή ακυρώθηκε — AWB ' . $shipment['voucher_number']);
-        $this->ccJson(array('success' => true));
+        $r = $this->ccService()->voidForOrder((int)($this->request->post['order_id'] ?? 0));
+        $this->ccJson($r['success'] ? array('success' => true) : array('success' => false, 'error' => $r['error']));
     }
 
     public function removeBoxNow() {
@@ -471,10 +536,8 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             $this->ccJson(array('success' => false, 'error' => 'Δεν υπάρχει αποστολή'));
             return;
         }
-        $last = (int)($shipment['last_checked_at'] ?? 0);
-        $elapsed = time() - $last;
-        if ($last > 0 && $elapsed < CCStatusTracker::MIN_INTERVAL) {
-            $mins = max(1, (int)ceil((CCStatusTracker::MIN_INTERVAL - $elapsed) / 60));
+        $mins = CCStatusTracker::wait_minutes($shipment);
+        if ($mins > 0) {
             $this->ccJson(array('success' => false, 'error' => 'Η αποστολή ενημερώθηκε πρόσφατα. Ξαναδοκίμασε σε ' . $mins . ' λεπτά.'));
             return;
         }
@@ -596,6 +659,41 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         return !$this->error;
     }
 
+    /**
+     * Normalise the settings form before editSetting() (which replaces EVERY key of the extension):
+     * secrets left empty keep the saved value, the internal keys survive, pickup points and returns
+     * are cleaned. @return string[] warnings for the merchant
+     */
+    private function prepareSettingsPost(array &$post) {
+        $this->ccBoot();
+        $p = $this->prefix;
+        $warnings = array();
+        foreach (self::SECRET_FIELDS as $field) {
+            if (trim((string)($post[$p . $field] ?? '')) === '') {
+                $post[$p . $field] = (string)$this->config->get($p . $field);
+            }
+        }
+        $url = trim($this->ccText($post[$p . 'tracking_url'] ?? ''));
+        if ($url === '' || strpos($url, '{{tracking}}') === false) {
+            if ($url !== '') {
+                $warnings[] = 'Το Tracking URL πρέπει να περιέχει το {{tracking}}· μπήκε ξανά το προεπιλεγμένο.';
+            }
+            $post[$p . 'tracking_url'] = self::DEFAULT_TRACKING_URL;
+        }
+        $main = trim($this->ccText($post[$p . 'billing_account'] ?? ''));
+        $clean = CCPickupPoints::sanitizeRows($post[$p . 'pickup_points'] ?? array(), $main);
+        $post[$p . 'pickup_points'] = $clean['rows'];
+        $warnings = array_merge($warnings, $clean['errors']);
+        $codes = array($main);
+        foreach ($clean['rows'] as $row) {
+            $codes[] = $row['code'];
+        }
+        $default = trim($this->ccText($post[$p . 'default_pickup_point'] ?? ''));
+        $post[$p . 'default_pickup_point'] = in_array($default, $codes, true) ? $default : '';
+        $warnings = array_merge($warnings, CCReturnsSettings::sanitizePost($post, array_values(array_filter($codes, 'strlen'))));
+        return $warnings;
+    }
+
     private function renderPhpGate() {
         $data = array(
             'message'     => sprintf($this->language->get('error_php_version'), '7.2', PHP_VERSION),
@@ -630,23 +728,5 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             $list[] = array('code' => $code, 'name' => $name);
         }
         return $list;
-    }
-
-    private function autofillPayload(array $c) {
-        return array(
-            'Context'      => array('UserAlias' => $c['user_alias'], 'CredentialValue' => $c['credential_value'], 'ApiKey' => $c['api_key']),
-            'shipmentDate' => date('Y-m-d'),
-            'comments'     => 'TEST AUTOFILL - DELETE',
-            'Requestor'    => array('CarrierBillingAccount' => $c['billing_account']),
-            'Shipper'      => array('CarrierBillingAccount' => $c['billing_account'], 'CompanyName' => 'TEST', 'Address' => 'TEST',
-                'ZipCode' => '10431', 'City' => 'ΑΘΗΝΑ', 'Phones' => '2101234567', 'Country' => 'GREECE', 'CountryCode' => 'GR'),
-            'Consignee'    => array('CompanyName' => 'TEST', 'ContactName' => 'TEST', 'Address' => 'ΑΘΗΝΑ', 'City' => 'ΑΘΗΝΑ',
-                'Area' => 'ΑΘΗΝΑ', 'ZipCode' => '10431', 'Country' => 'GR', 'Mobile1' => '2101234567'),
-            'BillTo'       => 'Requestor',
-            'BasicService' => '211',
-            'Reference1'   => 'TEST-AUTOFILL',
-            'Items'        => array(array('GoodsType' => 'NoDocs', 'Content' => 'TEST', 'IsDangerousGoods' => false,
-                'IsDryIce' => false, 'IsFragile' => false, 'Weight' => array('Unit' => 'kg', 'Value' => 1.0))),
-        );
     }
 }

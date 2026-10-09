@@ -6,7 +6,10 @@
  */
 require __DIR__ . '/lib/common.php';
 
-$shared = array('CCApi.php', 'CCCityScope.php', 'CCOrderAdapter.php', 'CCPdfScaler.php', 'CCShipmentBuilder.php', 'CCOrderHistory.php', 'CCStatusTracker.php');
+$shared = array('CCApi.php', 'CCCityScope.php', 'CCOrderAdapter.php', 'CCPdfScaler.php', 'CCShipmentBuilder.php', 'CCOrderHistory.php', 'CCStatusTracker.php',
+    // 1.1.0
+    'CCAutofill.php', 'CCDbSchema.php', 'CCLock.php', 'CCMailContent.php', 'CCPickupPoints.php', 'CCReturnPayload.php', 'CCReturnsRepo.php',
+    'CCReturnsRules.php', 'CCReturnsService.php', 'CCReturnsSettings.php', 'CCReturnsTracker.php', 'CCVoucherService.php');
 $mode = isset($argv[1]) ? $argv[1] : '--check';
 $cfg = cc_config();
 $oc3 = cc_repo_root() . '/upload/system/library/couriercenter';

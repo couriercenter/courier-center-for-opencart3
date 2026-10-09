@@ -22,18 +22,31 @@ class ControllerExtensionShippingCourierCenterManifest extends Controller {
             $selected = $today;
         }
         $this->load->model('extension/shipping/courier_center');
+        $points = \Opencart\Extension\Couriercenter\Library\CCPickupPoints::fromConfig($this->config);
+        $account = $this->knownAccount($points, (string)($this->request->get['account'] ?? ''));
+        $main = $points->main()['code'];
+        $point_options = array();
+        if ($points->hasSubs()) {
+            foreach ($points->all() as $pt) {
+                $point_options[] = array('code' => $pt['code'], 'label' => \Opencart\Extension\Couriercenter\Library\CCPickupPoints::label($pt));
+            }
+        }
+        $args = 'date=' . $selected . ($account !== '' ? '&account=' . urlencode($account) : '');
 
         $data = array(
             'selected_date'     => $selected,
+            'selected_account'  => $account,
+            'point_options'     => $point_options,
             'today'             => $today,
+            'tomorrow'          => date('Y-m-d', strtotime('+1 day')),
             'yesterday'         => date('Y-m-d', strtotime('-1 day')),
             'day_before'        => date('Y-m-d', strtotime('-2 days')),
-            'vouchers_count'    => $this->model_extension_shipping_courier_center->countShipmentsForDate($selected),
+            'vouchers_count'    => $this->model_extension_shipping_courier_center->countShipmentsForDate($selected, $account, $account !== '' && $account === $main),
             'greek_date'        => $this->formatGreekDate($selected),
             'user_token'        => $this->session->data['user_token'],
-            'url_download'      => $this->ccLink('extension/shipping/courier_center/manifest/download', 'date=' . $selected),
-            'url_download_save' => $this->ccLink('extension/shipping/courier_center/manifest/download', 'date=' . $selected . '&save=1'),
-            'url_self'          => $this->ccLink('extension/shipping/courier_center/manifest'),
+            'url_download'      => $this->ccLink('extension/shipping/courier_center/manifest/download', $args),
+            'url_download_save' => $this->ccLink('extension/shipping/courier_center/manifest/download', $args . '&save=1'),
+            'url_self'          => $this->ccLink('extension/shipping/courier_center/manifest', $account !== '' ? 'account=' . urlencode($account) : ''),
             'url_settings'      => $this->ccLink('extension/shipping/courier_center'),
         );
         $data['breadcrumbs'] = array(
@@ -58,11 +71,19 @@ class ControllerExtensionShippingCourierCenterManifest extends Controller {
         if (!$d || $d->format('Y-m-d') !== $date) {
             $date = date('Y-m-d');
         }
-        $pdf = $this->ccService()->api()->get_manifest($date);
+        $svc = $this->ccService();
+        $account = $this->knownAccount($svc->points(), (string)($this->request->get['account'] ?? ''));
+        $pdf = $svc->api()->get_manifest($date, $account);
         if (is_array($pdf)) {
             $this->ccTextError(500, 'Σφάλμα λήψης manifest: ' . ($pdf['error'] ?? 'Άγνωστο σφάλμα'));
         }
-        $this->ccSendPdf($pdf, 'manifest-' . $date . '.pdf', !empty($this->request->get['save']) ? 'attachment' : 'inline');
+        $this->ccSendPdf($pdf, 'manifest-' . $date . ($account !== '' ? '-' . $account : '') . '.pdf', !empty($this->request->get['save']) ? 'attachment' : 'inline');
+    }
+
+    /** A pickup point code the shop knows, else '' (= all points, no filter). */
+    private function knownAccount($points, $raw) {
+        $raw = trim($this->ccText($raw));
+        return ($raw !== '' && $points->hasSubs() && $points->get($raw) !== null) ? $raw : '';
     }
 
     private function formatGreekDate($date) {

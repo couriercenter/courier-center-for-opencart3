@@ -1,0 +1,101 @@
+{{ header|raw }}
+<div id="account-return-cc" class="container">
+  <ul class="breadcrumb">
+    {% for breadcrumb in breadcrumbs %}
+    <li><a href="{{ breadcrumb.href|e }}">{{ breadcrumb.text|e }}</a></li>
+    {% endfor %}
+  </ul>
+  <div class="row">{{ column_left|raw }}
+    {% if column_left and column_right %}{% set class = 'col-sm-6' %}{% elseif column_left or column_right %}{% set class = 'col-sm-9' %}{% else %}{% set class = 'col-sm-12' %}{% endif %}
+    <div id="content" class="{{ class|e }}">{{ content_top|raw }}
+      <h1>Αίτημα επιστροφής — Παραγγελία #{{ order_id|e }}</h1>
+      {% if error %}<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> {{ error|e }}</div>{% endif %}
+      {% if blocked %}
+      <div class="buttons clearfix"><div class="pull-left"><a href="{{ back|e }}" class="btn btn-default">Επιστροφή στην παραγγελία</a></div></div>
+      {% else %}
+      <form action="{{ action|e }}" method="post" id="cc-return-form" class="form-horizontal">
+        <input type="hidden" name="request_uid" value="{{ request_uid|e }}">
+        <fieldset>
+          <legend>Προϊόντα</legend>
+          <table class="table table-bordered">
+            <thead><tr><th>Προϊόν</th><th class="text-center" style="width:110px;">Αγοράστηκαν</th><th style="width:140px;">Για επιστροφή</th></tr></thead>
+            <tbody>
+              {% for it in items %}
+              <tr>
+                <td>{{ it.name|e }}{% if it.model %} <small class="text-muted">({{ it.model|e }})</small>{% endif %}</td>
+                <td class="text-center">{{ it.ordered|e }}</td>
+                <td>{% if it.available > 0 %}<input type="number" name="qty[{{ it.id|e }}]" value="{{ it.value|e }}" min="0" max="{{ it.available|e }}" class="form-control input-sm">{% else %}<small class="text-muted">Έχει ήδη ζητηθεί</small>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="cc-reason">Λόγος (προαιρετικό)</label>
+            <div class="col-sm-10"><textarea name="reason" id="cc-reason" rows="3" maxlength="500" class="form-control">{{ reason|e }}</textarea></div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Τρόπος επιστροφής</legend>
+          {% for m in methods %}
+          <div class="radio"><label><input type="radio" name="method" value="{{ m.code|e }}"{% if m.code == method %} checked{% endif %}> {{ m.label|e }}</label></div>
+          {% endfor %}
+          <div id="cc-sizes" style="margin:10px 0 0 20px;{% if method != boxnow %} display:none;{% endif %}">
+            <p><strong>Μέγεθος θυρίδας BOX NOW</strong></p>
+            {% for sz in sizes %}
+            <div class="radio"><label><input type="radio" name="locker_size" value="{{ sz.code|e }}"{% if sz.code == locker_size %} checked{% endif %}> {{ sz.label|e }} <small class="text-muted">({{ sz.dims|e }})</small></label></div>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Στοιχεία αποστολέα</legend>
+          <div class="form-group required">
+            <label class="col-sm-2 control-label" for="cc-name">Ονοματεπώνυμο</label>
+            <div class="col-sm-10"><input type="text" name="name" id="cc-name" value="{{ name|e }}" class="form-control"></div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="cc-mobile">Κινητό</label>
+            <div class="col-sm-10"><input type="tel" name="mobile" id="cc-mobile" value="{{ mobile|e }}" class="form-control" placeholder="69XXXXXXXX"></div>
+          </div>
+          <div class="form-group" id="cc-landline-row">
+            <label class="col-sm-2 control-label" for="cc-landline">Σταθερό</label>
+            <div class="col-sm-10"><input type="tel" name="landline" id="cc-landline" value="{{ landline|e }}" class="form-control" placeholder="2XXXXXXXXX"></div>
+          </div>
+          <p class="help-block" id="cc-phone-help"></p>
+        </fieldset>
+        <div class="buttons clearfix">
+          <div class="pull-left"><a href="{{ back|e }}" class="btn btn-default">Άκυρο</a></div>
+          <div class="pull-right"><button type="submit" class="btn btn-primary" id="cc-submit">Υποβολή αιτήματος</button></div>
+        </div>
+      </form>
+      <script>
+      (function () {
+        var form = document.getElementById('cc-return-form'), BOXNOW = {{ boxnow|json_encode }};
+        var MSG_PHONE = {{ msg_phone|json_encode }}, MSG_MOBILE = {{ msg_mobile|json_encode }};
+        function method() { var c = form.querySelector('input[name="method"]:checked'); return c ? c.value : ''; }
+        function digits(v) { v = String(v || '').replace(/\D+/g, ''); if (v.indexOf('0030') === 0) v = v.slice(4); else if (v.indexOf('30') === 0 && v.length === 12) v = v.slice(2); return v; }
+        function refresh() {
+          var bn = method() === BOXNOW;
+          document.getElementById('cc-sizes').style.display = bn ? '' : 'none';
+          document.getElementById('cc-landline-row').style.display = bn ? 'none' : '';
+          document.getElementById('cc-phone-help').textContent = bn ? MSG_MOBILE : MSG_PHONE;
+        }
+        form.addEventListener('change', refresh);
+        refresh();
+        form.addEventListener('submit', function (e) {
+          var any = Array.prototype.some.call(form.querySelectorAll('input[name^="qty["]'), function (i) { return parseInt(i.value || '0', 10) > 0; });
+          var m = digits(form.mobile.value), l = digits(form.landline.value), bn = method() === BOXNOW;
+          var err = '';
+          if (!any) err = 'Επιλέξτε τουλάχιστον ένα τεμάχιο για επιστροφή.';
+          else if (bn && !/^69\d{8}$/.test(m) && !/^69\d{8}$/.test(l)) err = MSG_MOBILE;
+          else if (!bn && !/^(69|2)\d{8,9}$/.test(m) && !/^(69|2)\d{8,9}$/.test(l)) err = MSG_PHONE;
+          else if (bn && !form.querySelector('input[name="locker_size"]:checked')) err = 'Επιλέξτε μέγεθος BOX NOW locker (Μικρό, Μεσαίο ή Μεγάλο).';
+          if (err) { e.preventDefault(); alert(err); return; }
+          document.getElementById('cc-submit').disabled = true;
+        });
+      })();
+      </script>
+      {% endif %}
+      {{ content_bottom|raw }}</div>
+    {{ column_right|raw }}</div>
+</div>
+{{ footer|raw }}

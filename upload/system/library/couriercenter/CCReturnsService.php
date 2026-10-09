@@ -45,6 +45,7 @@ class CCReturnsService {
         $this->prefix = $prefix;
         $this->config = $config;
         $this->api = $api !== null ? $api : new CCApi($this->setting('user_alias'), $this->setting('credential_value'), $this->setting('api_key'), $this->setting('billing_account'));
+        CCDbSchema::ensureOnce($db, $prefix);
         $this->repo = new CCReturnsRepo($db, $prefix);
         $this->settings = new CCReturnsSettings($config);
         $this->notifier = $notifier;

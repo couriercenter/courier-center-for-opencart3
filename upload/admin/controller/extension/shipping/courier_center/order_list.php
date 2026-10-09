@@ -15,6 +15,7 @@ class ControllerExtensionShippingCourierCenterOrderList extends Controller {
         }
         try {
             $this->ccBoot();
+            \Opencart\Extension\Couriercenter\Library\CCDbSchema::ensureOnce($this->db, DB_PREFIX);
             preg_match_all('/name="selected\[\]"\s+value="(\d+)"/', $output, $m);
             $ids = array_values(array_unique(array_map('intval', $m[1])));
             $shipments = array();
@@ -30,21 +31,29 @@ class ControllerExtensionShippingCourierCenterOrderList extends Controller {
                         'status_desc'     => $this->ccText($row['status_desc']),
                         'is_voided'       => (int)$row['is_voided'],
                         'is_boxnow'       => (int)$row['is_boxnow'],
+                        'parcel_id'       => $this->ccText($row['boxnow_parcel_id'] ?? ''),
                     );
                 }
                 foreach ($this->model_extension_shipping_courier_center->getOrderShippingRows($ids) as $id => $row) {
-                    $methods[(string)$id] = array('name' => $this->ccText($row['shipping_method']), 'managed' => $svc->isHandledOrder($row));
+                    $methods[(string)$id] = array('name' => \Opencart\Extension\Couriercenter\Library\CCVoucherService::shippingName($row), 'managed' => $svc->isHandledOrder($row));
                 }
             }
             $tracking = (string)$svc->setting('tracking_url');
+            $points = array();
+            if ($svc->points()->hasSubs()) {
+                foreach ($svc->points()->all() as $pt) {
+                    $points[] = array('code' => $pt['code'], 'label' => \Opencart\Extension\Couriercenter\Library\CCPickupPoints::label($pt));
+                }
+            }
             $base = 'extension/shipping/courier_center/';
             $script = $this->load->view('extension/shipping/courier_center/order_list_inject', array(
                 'shipments'    => (object)$shipments,
                 'methods'      => (object)$methods,
                 'tracking_url' => $tracking !== '' ? $tracking : 'https://www.courier.gr/track/result?tracknr={{tracking}}',
+                'points'       => $points,
+                'default_point' => $svc->points()->defaultCode(),
                 'urls'         => array(
                     'create'   => $this->ccLink($base . 'bulkCreate'),
-                    'createbn' => $this->ccLink($base . 'bulkCreateBoxnow'),
                     'status'   => $this->ccLink($base . 'bulkStatus'),
                     'print'    => $this->ccLink($base . 'bulkPrint'),
                     'printbn'  => $this->ccLink($base . 'bulkPrintBoxnow'),

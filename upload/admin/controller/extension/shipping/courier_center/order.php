@@ -6,7 +6,7 @@
  */
 require_once DIR_SYSTEM . 'library/couriercenter/oc3/CCControllerTrait.php';
 
-use Opencart\Extension\Couriercenter\Oc3\CCVoucherService;
+use Opencart\Extension\Couriercenter\Library\CCVoucherService;
 
 class ControllerExtensionShippingCourierCenterOrder extends Controller {
     use \Opencart\Extension\Couriercenter\Oc3\CCControllerTrait;

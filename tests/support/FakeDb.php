@@ -16,6 +16,27 @@ class FakeDbResult {
 class FakeDb {
     public $queries = array();
     private $handlers = array();
+    /** cc_locks rows (name => [token, locked_at]): a tiny in-memory table for CCLock. */
+    public $locks = array();
+
+    public function __construct() {
+        $self = $this;
+        $this->on("/^INSERT IGNORE INTO `\w*cc_locks` SET `name` = '([^']*)', `token` = '([^']*)', `locked_at` = '(\d+)'/", function ($sql, $m) use ($self) {
+            if (!isset($self->locks[$m[1]])) {
+                $self->locks[$m[1]] = array('token' => $m[2], 'locked_at' => $m[3]);
+            }
+            return array();
+        });
+        $this->on("/^SELECT `token`, `locked_at` FROM `\w*cc_locks` WHERE `name` = '([^']*)'/", function ($sql, $m) use ($self) {
+            return isset($self->locks[$m[1]]) ? array($self->locks[$m[1]]) : array();
+        });
+        $this->on("/^DELETE FROM `\w*cc_locks` WHERE `name` = '([^']*)' AND `token` = '([^']*)'/", function ($sql, $m) use ($self) {
+            if (isset($self->locks[$m[1]]) && $self->locks[$m[1]]['token'] === $m[2]) {
+                unset($self->locks[$m[1]]);
+            }
+            return array();
+        });
+    }
 
     /** @param array|Closure $rows rows, or function (string $sql, array $matches): array */
     public function on($regex, $rows) {

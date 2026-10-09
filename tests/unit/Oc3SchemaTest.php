@@ -13,11 +13,19 @@ function test_oc3_schema_creates_the_table_mysql55_safe() {
         assert_contains($part, $create[0]);
     }
     assert_not_contains('CURRENT_TIMESTAMP', $create[0]);
-    assert_same(array('table created'), $done);
+    assert_same(array('table created: cc_shipments', 'table created: cc_locks', 'table created: cc_return_requests'), $done);
+    assert_count(1, $db->matching("/INSERT INTO `shop_setting` SET `store_id` = '0', `code` = 'courier_center_state', `key` = 'shipping_courier_center_schema_version'/"));
 }
 function test_oc3_schema_adds_only_missing_columns() {
     $db = new FakeDb();
-    $db->on("/SHOW TABLES LIKE 'oc_cc_shipments'/", array(array('t' => 'oc_cc_shipments')));
+    $db->on("/SHOW TABLES LIKE 'oc_cc_/", array(array('t' => 'exists')));
+    $db->on('/SHOW COLUMNS FROM `oc_cc_(locks|return_requests)`/', function ($sql, $m) {
+        $rows = array();
+        foreach (array_keys(\Opencart\Extension\Couriercenter\Library\CCDbSchema::columns('cc_' . $m[1])) as $c) {
+            $rows[] = array('Field' => $c);
+        }
+        return $rows;
+    });
     $have = array();
     foreach (array_keys(CCSchema::columns()) as $c) {
         if (!in_array($c, array('locker_name', 'created_at'), true)) {
@@ -28,7 +36,7 @@ function test_oc3_schema_adds_only_missing_columns() {
     $done = CCSchema::ensure($db, 'oc_');
     assert_count(0, $db->matching('/CREATE TABLE/'));
     assert_count(2, $db->matching('/ALTER TABLE `oc_cc_shipments` ADD/'));
-    assert_same(array('column added: locker_name', 'column added: created_at'), $done);
+    assert_same(array('column added: cc_shipments.locker_name', 'column added: cc_shipments.created_at'), $done);
 }
 function test_oc3_schema_events_match_the_spec() {
     $events = CCSchema::events();

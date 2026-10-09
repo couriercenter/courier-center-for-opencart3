@@ -74,7 +74,7 @@ function test_lib_tracker_empty_status_only_marks_the_check() {
 function test_lib_tracker_run_skips_recent_checks() {
     $now = 1800000000;
     $db = cc_tracker_db();
-    $db->on('/SELECT \* FROM `oc_cc_shipments` WHERE `is_voided` = 0/', array(
+    $db->on('/SELECT s\.\* FROM `oc_cc_shipments` s WHERE s\.`is_voided` = 0/', array(
         array('order_id' => '1', 'voucher_number' => 'A', 'status_code' => '', 'last_checked_at' => (string)($now - 100)),
         array('order_id' => '2', 'voucher_number' => 'B', 'status_code' => '', 'last_checked_at' => (string)($now - 4000)),
         array('order_id' => '3', 'voucher_number' => 'C', 'status_code' => '', 'last_checked_at' => null),

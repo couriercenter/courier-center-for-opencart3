@@ -11,7 +11,7 @@ use Opencart\Extension\Couriercenter\Library\CCApi;
 use Opencart\Extension\Couriercenter\Library\CCPdfScaler;
 use Opencart\Extension\Couriercenter\Library\CCStatusTracker;
 use Opencart\Extension\Couriercenter\Oc3\CCErrorGuard;
-use Opencart\Extension\Couriercenter\Oc3\CCVoucherService;
+use Opencart\Extension\Couriercenter\Library\CCVoucherService;
 use Opencart\Extension\Couriercenter\Oc3\CCSchema;
 use Opencart\Extension\Couriercenter\Oc3\CCState;
 use Opencart\Extension\Couriercenter\Oc3\CCTelemetry;

@@ -27,7 +27,8 @@ class CCCronRunner {
                     return html_entity_decode((string)$config->get('shipping_courier_center_' . $key), ENT_QUOTES, 'UTF-8');
                 };
                 $api = new CCApi($text('user_alias'), $text('credential_value'), $text('api_key'), $text('billing_account'));
-                $tracker = new CCStatusTracker($db, $prefix, $api, (int)$config->get('shipping_courier_center_auto_complete_status_id'));
+                $svc = new \Opencart\Extension\Couriercenter\Library\CCVoucherService($db, $config, $prefix, $api);
+                $tracker = $svc->tracker();
             }
             $report = $tracker->run();
             $state = new CCState($db, $prefix);

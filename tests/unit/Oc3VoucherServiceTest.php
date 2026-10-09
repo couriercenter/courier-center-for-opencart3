@@ -5,9 +5,9 @@ require_once CC_REPO . '/tests/support/FakeApi.php';
 foreach (array('CCCityScope', 'CCOrderAdapter', 'CCShipmentBuilder', 'CCOrderHistory', 'CCStatusTracker') as $cc_class) {
     require_once CC_LIB . "/$cc_class.php";
 }
-require_once CC_OC3 . '/CCVoucherService.php';
+require_once CC_LIB . '/CCVoucherService.php';
 
-use Opencart\Extension\Couriercenter\Oc3\CCVoucherService;
+use Opencart\Extension\Couriercenter\Library\CCVoucherService;
 
 /** OpenCart 3 getOrder() shape (spec 4.8). */
 function cc_oc3_order(array $o = array()) {
@@ -114,7 +114,11 @@ function test_oc3_service_api_error_has_stage_api_and_saves_nothing() {
     list($svc, $db) = cc_service(array(), array('create_shipment' => array('success' => false, 'error' => 'Invalid zip')));
     $r = $svc->createForOrder(cc_oc3_order(), array());
     assert_same(array(false, 'api', 'Invalid zip'), array($r['success'], $r['stage'], $r['error']));
-    assert_count(0, $db->matching('/oc_cc_shipments/'));
+    assert_count(0, $db->matching('/(INSERT INTO|UPDATE) `oc_cc_shipments`/'));
+    $hist = $db->matching('/INSERT INTO `oc_order_history`/');
+    assert_count(1, $hist, 'manual API failure leaves a note');
+    assert_contains('❌ Αποτυχία δημιουργίας voucher: Invalid zip', $hist[0]);
+    assert_same(array(), $db->locks, 'lock released');
 }
 function test_oc3_service_saves_the_return_awb_and_auto_note() {
     list($svc, $db) = cc_service(array(), array('create_shipment' => array('Result' => 'Success', 'ShipmentNumber' => 'A1', 'TrackingNumbers' => array('A1', 'R1'))));

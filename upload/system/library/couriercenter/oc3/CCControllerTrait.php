@@ -23,7 +23,7 @@ trait CCControllerTrait {
     }
 
     protected function ccService() {
-        return new CCVoucherService($this->db, $this->config, DB_PREFIX);
+        return new \Opencart\Extension\Couriercenter\Library\CCVoucherService($this->db, $this->config, DB_PREFIX);
     }
 
     protected function ccCanModify() {

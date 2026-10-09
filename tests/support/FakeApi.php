@@ -30,7 +30,7 @@ class FakeApi extends \Opencart\Extension\Couriercenter\Library\CCApi {
     public function get_shipment_details(string $awb): array {
         return (array)$this->answer('get_shipment_details', array($awb));
     }
-    public function get_manifest(string $date) {
-        return $this->answer('get_manifest', array($date));
+    public function get_manifest(string $date, string $account = '') {
+        return $this->answer('get_manifest', array($date, $account));
     }
 }

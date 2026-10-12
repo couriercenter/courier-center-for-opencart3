@@ -120,7 +120,7 @@ def main():
         check(pdf == '%PDF', 'the BOX NOW PDF downloads')
 
         print('== customer return form JS')
-        for k, v in (('enabled', '1'), ('require_approval', '1'), ('method_dropoff', '1'), ('method_boxnow', '1')):
+        for k, v in (('enabled', '1'), ('require_approval', '1'), ('method_dropoff', '1'), ('method_boxnow', '1'), ('method_pickup', '1')):
             sql("DELETE FROM oc_setting WHERE `key`='shipping_courier_center_returns_%s'" % k)
             sql("INSERT INTO oc_setting SET store_id=0, code='shipping_courier_center', `key`='shipping_courier_center_returns_%s', value='%s', serialized=0" % (k, v))
         sql("DELETE FROM oc_cc_return_requests WHERE order_id=" + o_norm)
@@ -146,6 +146,25 @@ def main():
         cpage.click('#cc-returns a:has-text("Αίτημα επιστροφής")')
         cpage.wait_for_load_state('load')
         check(not cpage.locator('#cc-sizes').is_visible(), 'Drop Off by default: no locker sizes')
+
+        print('== Pickup JS (customer form, nothing submitted)')
+        form_url = cpage.url
+        check(not cpage.locator('#cc-pickup').is_visible(), 'Pickup fields hidden for Drop Off')
+        cpage.check('input[name="method"][value="COURIER_CENTER_PICKUP"]')
+        check(cpage.locator('#cc-pickup').is_visible() and not cpage.locator('#cc-sizes').is_visible(), 'Pickup shows its fields')
+        check(cpage.locator('#cc-pickup-date option').count() == 10, 'ten pickup dates offered')
+        cpage.select_option('#cc-pickup-from', '11:00')
+        dis = cpage.evaluate("() => Array.from(document.querySelectorAll('#cc-pickup-to option')).filter(o => o.disabled).map(o => o.value)")
+        check(dis == ['13:00', '14:00'], '«Έως» offers only hours ≥ Από + 4 (disabled: ' + ','.join(dis) + ')')
+        cpage.locator('input[name^="qty["]').first.fill('1')
+        cpage.click('#cc-submit')
+        check(cdialogs and 'δύο άκρα' in cdialogs[-1], 'only «Από» → alert: ' + (cdialogs[-1] if cdialogs else '-'))
+        cpage.select_option('#cc-pickup-to', '15:00')
+        cpage.fill('#cc-pickup-postcode', '123')
+        cpage.click('#cc-submit')
+        check('5 ψηφία' in cdialogs[-1], 'bad postcode → alert')
+        cpage.goto(form_url)
+        cpage.wait_for_load_state('load')
         cpage.check('input[name="method"][value="BOXNOW"]')
         check(cpage.locator('#cc-sizes').is_visible() and not cpage.locator('#cc-landline-row').is_visible(), 'BOX NOW shows sizes, hides the landline')
         cpage.click('#cc-submit')
@@ -159,6 +178,20 @@ def main():
         check('καταχωρίστηκε' in cpage.inner_text('body'), 'submitted → flash on the order page')
         req = sql("SELECT id, status, locker_size FROM oc_cc_return_requests WHERE order_id=%s ORDER BY id DESC LIMIT 1" % o_norm)
         check(req and req[0][1] == 'pending_approval' and req[0][2] == 'medium', 'request stored: ' + str(req))
+
+
+        print('== admin «Νέα επιστροφή» JS + notice (nothing submitted)')
+        page.goto(A('common/dashboard'))
+        check(page.locator('#cc-returns-notice').count() == 1, 'dashboard notice while a request waits')
+        page.goto(A('extension/shipping/courier_center/returns/add', '&order_id=' + o_norm))
+        page.wait_for_load_state('load')
+        check(page.locator('#cc-return-form').count() == 1 and page.locator('input[name="method"]').count() == 3, '«Νέα επιστροφή» form with the 3 methods')
+        page.check('input[name="method"][value="COURIER_CENTER_PICKUP"]')
+        check(page.locator('#cc-pickup').is_visible(), 'admin form: Pickup shows its fields')
+        page.check('input[name="method"][value="BOXNOW"]')
+        check(page.locator('#cc-sizes').is_visible() and not page.locator('#cc-pickup').is_visible(), 'admin form: BOX NOW shows the sizes')
+        page.click('#cc-submit')
+        check(dialogs and 'τουλάχιστον ένα τεμάχιο' in dialogs[-1], 'admin form: no quantity → alert')
 
         print('== admin returns page: reject button')
         page.goto(A('extension/shipping/courier_center/returns'))

@@ -12,7 +12,7 @@ DB = 'opencart4'
 MYSQL = 'C:/xampp/mysql/bin/mysql.exe'
 PHP = 'C:/xampp/php/php.exe'
 ok, fail, awbs, clones = 0, [], [], []
-KEYS = ['pickup_points', 'default_pickup_point', 'returns_enabled', 'returns_require_approval', 'returns_method_dropoff', 'returns_method_boxnow']
+KEYS = ['pickup_points', 'default_pickup_point', 'returns_enabled', 'returns_require_approval', 'returns_method_dropoff', 'returns_method_boxnow', 'returns_method_pickup']
 
 
 def check(cond, what):
@@ -55,7 +55,8 @@ def main():
         br = p.chromium.launch(channel='chrome', headless=True)
         ctx = br.new_context()
         page = ctx.new_page()
-        page.on('dialog', lambda d: d.accept())
+        dialogs = []
+        page.on('dialog', lambda d: (dialogs.append(d.message), d.accept()))
         errors = []
         page.on('pageerror', lambda e: errors.append(str(e)))
 
@@ -79,7 +80,7 @@ def main():
         row.locator('.cc-pt-autofill').click()
         page.wait_for_function("document.getElementById('cc-pt-status').textContent.indexOf('100-0120-0003') !== -1 && document.getElementById('cc-pt-status').textContent.indexOf('Δημιουργία') === -1", timeout=90000)
         check('✓' in page.inner_text('#cc-pt-status') and row.locator('.cc-pt-name').input_value() != '', 'row autofill: ' + page.inner_text('#cc-pt-status'))
-        for k, v in (('returns_enabled', '1'), ('returns_require_approval', '1'), ('returns_method_dropoff', '1'), ('returns_method_boxnow', '1')):
+        for k, v in (('returns_enabled', '1'), ('returns_require_approval', '1'), ('returns_method_dropoff', '1'), ('returns_method_boxnow', '1'), ('returns_method_pickup', '1')):
             page.select_option('select[name="shipping_courier_center_%s"]' % k, v)
         page.click('button[form="form-courier-center"]')
         page.wait_for_load_state('load')
@@ -148,6 +149,65 @@ def main():
         page.evaluate("() => $('#order').load($('#order a.page-link').attr('href') || window.location.href.replace('route=sale/order', 'route=sale/order.list'))")
         page.wait_for_timeout(2500)
         check('Τύπος' in ' '.join(page.locator('#order thead .cc-col-head').all_inner_texts()), 'columns again after an AJAX reload of the list')
+
+        print('== customer return form (order %s)' % o_norm)
+        email = 'ui-returns-oc4@example.com'
+        sql("DELETE FROM oc_customer WHERE email='%s'" % email)
+        pw = subprocess.run([PHP, '-r', 'echo password_hash("ret123", PASSWORD_DEFAULT);'], capture_output=True, text=True).stdout.strip()
+        sql("INSERT INTO oc_customer SET customer_group_id=1, store_id=0, language_id=1, firstname='UI', lastname='OC4', email='%s', telephone='6912345678', password='%s', custom_field='', newsletter=0, ip='', status=1, safe=0, token='', code='', date_added=NOW()" % (email, pw))
+        cid = sql("SELECT customer_id FROM oc_customer WHERE email='%s'" % email)[0][0]
+        done = json.loads(sql("SELECT value FROM oc_setting WHERE `key`='config_complete_status'")[0][0])[0]
+        sql("UPDATE oc_order SET customer_id=%s, email='%s', order_status_id=%s WHERE order_id=%s" % (cid, email, done, o_norm))
+        sql("INSERT INTO oc_order_history SET order_id=%s, order_status_id=%s, notify=0, comment='ui', date_added=NOW()" % (o_norm, done))
+        cctx = br.new_context()
+        cpage = cctx.new_page()
+        cdialogs = []
+        cpage.on('dialog', lambda d: (cdialogs.append(d.message), d.accept()))
+        cpage.on('pageerror', lambda e: errors.append('customer: ' + str(e)))
+        cpage.goto(BASE + 'index.php?route=account/login&language=en-gb')
+        cpage.fill('#input-email', email)
+        cpage.fill('#input-password', 'ret123')
+        cpage.click('#form-login button[type=submit]')
+        cpage.wait_for_url(re.compile('customer_token='), timeout=20000)
+        ctok = re.search(r'customer_token=([A-Za-z0-9]+)', cpage.url).group(1)
+        cpage.goto(BASE + 'index.php?route=extension/couriercenter/shipping/courier_center_returns&language=en-gb&customer_token=' + ctok + '&order_id=' + o_norm)
+        cpage.wait_for_load_state('load')
+        check(cpage.locator('#cc-return-form').count() == 1, 'customer return form renders')
+
+        print('== Pickup JS (customer form, nothing submitted)')
+        form_url = cpage.url
+        check(not cpage.locator('#cc-pickup').is_visible(), 'Pickup fields hidden for Drop Off')
+        cpage.check('input[name="method"][value="COURIER_CENTER_PICKUP"]')
+        check(cpage.locator('#cc-pickup').is_visible() and not cpage.locator('#cc-sizes').is_visible(), 'Pickup shows its fields')
+        check(cpage.locator('#cc-pickup-date option').count() == 10, 'ten pickup dates offered')
+        cpage.select_option('#cc-pickup-from', '11:00')
+        dis = cpage.evaluate("() => Array.from(document.querySelectorAll('#cc-pickup-to option')).filter(o => o.disabled).map(o => o.value)")
+        check(dis == ['13:00', '14:00'], '«Έως» offers only hours ≥ Από + 4 (disabled: ' + ','.join(dis) + ')')
+        cpage.locator('input[name^="qty["]').first.fill('1')
+        cpage.click('#cc-submit')
+        check(cdialogs and 'δύο άκρα' in cdialogs[-1], 'only «Από» → alert: ' + (cdialogs[-1] if cdialogs else '-'))
+        cpage.select_option('#cc-pickup-to', '15:00')
+        cpage.fill('#cc-pickup-postcode', '123')
+        cpage.click('#cc-submit')
+        check('5 ψηφία' in cdialogs[-1], 'bad postcode → alert')
+        cpage.goto(form_url)
+        cpage.wait_for_load_state('load')
+        sql("DELETE FROM oc_customer WHERE customer_id=" + cid)
+        cctx.close()
+        sql("INSERT INTO oc_cc_return_requests SET request_uid='uinotice%s', reference_token='RRUI%s', order_id=%s, customer_id=0, status='pending_approval', method='COURIER_CENTER_DROPOFF', items='[]', created_at=NOW(), updated_at=NOW()" % (o_norm, o_norm, o_norm))
+
+        print('== admin «Νέα επιστροφή» JS + notice (nothing submitted)')
+        page.goto(A('common/dashboard'))
+        check(page.locator('#cc-returns-notice').count() == 1, 'dashboard notice while a request waits')
+        page.goto(A('extension/couriercenter/shipping/courier_center_returns.add', '&order_id=' + o_norm))
+        page.wait_for_load_state('load')
+        check(page.locator('#cc-return-form').count() == 1 and page.locator('input[name="method"]').count() == 3, '«Νέα επιστροφή» form with the 3 methods')
+        page.check('input[name="method"][value="COURIER_CENTER_PICKUP"]')
+        check(page.locator('#cc-pickup').is_visible(), 'admin form: Pickup shows its fields')
+        page.check('input[name="method"][value="BOXNOW"]')
+        check(page.locator('#cc-sizes').is_visible() and not page.locator('#cc-pickup').is_visible(), 'admin form: BOX NOW shows the sizes')
+        page.click('#cc-submit')
+        check(dialogs and 'τουλάχιστον ένα τεμάχιο' in dialogs[-1], 'admin form: no quantity → alert')
 
         print('== manifest form')
         page.goto(A('extension/couriercenter/shipping/courier_center_manifest'))

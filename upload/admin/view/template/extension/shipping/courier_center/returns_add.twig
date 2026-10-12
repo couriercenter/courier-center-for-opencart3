@@ -1,0 +1,163 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="pull-right"><a href="{{ order_url|e }}" class="btn btn-default"><i class="fa fa-reply"></i> Πίσω στην παραγγελία</a></div>
+      <h1><i class="fa fa-undo"></i> Νέα επιστροφή — Παραγγελία #{{ order_id|e }}</h1>
+      <ul class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+        <li><a href="{{ breadcrumb.href|e }}">{{ breadcrumb.text|e }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <div class="container-fluid">
+    {% if error %}<div class="alert alert-danger" id="cc-add-error"><i class="fa fa-exclamation-circle"></i> {{ error|e }}</div>{% endif %}
+    {% if not found %}
+    <div class="alert alert-danger">Η παραγγελία δεν βρέθηκε.</div>
+    {% elseif not active %}
+    <div class="alert alert-warning">Η παραγγελία δεν έχει ενεργή αποστολή Courier Center (AWB)· η επιστροφή δημιουργείται μόνο για παραγγελίες που στάλθηκαν με Courier Center και δεν ακυρώθηκαν.</div>
+    {% else %}
+    <div class="panel panel-default">
+      <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-pencil"></i> Αρχική αποστολή: {{ awb|e }}</h3></div>
+      <div class="panel-body">
+        <p class="help-block">Η αποστολή επιστροφής δημιουργείται αμέσως, χωρίς έγκριση και χωρίς προθεσμία, με οποιαδήποτε από τις τρεις μεθόδους (ανεξάρτητα από τις ρυθμίσεις που βλέπει ο πελάτης).</p>
+        <form action="{{ action|e }}" method="post" id="cc-return-form" class="form-horizontal" novalidate>
+          <input type="hidden" name="request_uid" value="{{ request_uid|e }}">
+          <fieldset>
+            <legend>Προϊόντα</legend>
+            <table class="table table-bordered" style="max-width:760px;">
+              <thead><tr><th>Προϊόν</th><th class="text-center">Παραγγέλθηκαν</th><th class="text-center">Διαθέσιμα</th><th style="width:150px;">Τεμάχια προς επιστροφή</th></tr></thead>
+              <tbody>
+                {% for it in items %}
+                <tr>
+                  <td>{{ it.name|e }}{% if it.model %} <small class="text-muted">({{ it.model|e }})</small>{% endif %}</td>
+                  <td class="text-center">{{ it.ordered|e }}</td>
+                  <td class="text-center">{{ it.available|e }}</td>
+                  <td><input type="number" name="qty[{{ it.id|e }}]" value="{{ it.value|e }}" min="0" max="{{ it.available|e }}" step="1" class="form-control input-sm"{% if it.available <= 0 %} disabled{% endif %}></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </fieldset>
+          <fieldset>
+            <legend>Τρόπος επιστροφής</legend>
+            {% for m in methods %}
+            <div class="radio"><label><input type="radio" name="method" value="{{ m.code|e }}"{% if m.code == method %} checked{% endif %}> {{ m.label|e }}</label></div>
+            {% endfor %}
+            <div id="cc-sizes" style="margin:10px 0 0 20px;{% if method != boxnow %} display:none;{% endif %}">
+              <p><strong>Μέγεθος θυρίδας BOX NOW</strong></p>
+              {% for sz in sizes %}
+              <div class="radio"><label><input type="radio" name="locker_size" value="{{ sz.code|e }}"{% if sz.code == locker_size %} checked{% endif %}> {{ sz.label|e }} <small class="text-muted">({{ sz.dims|e }})</small></label></div>
+              {% endfor %}
+            </div>
+          </fieldset>
+          <fieldset id="cc-pickup"{% if method != pickup %} style="display:none;"{% endif %}>
+            <legend>Στοιχεία παραλαβής</legend>
+            <div class="form-group required">
+              <label class="col-sm-2 control-label" for="cc-pickup-address">Διεύθυνση παραλαβής</label>
+              <div class="col-sm-10"><input type="text" name="pickup_address" id="cc-pickup-address" value="{{ pickup_address|e }}" maxlength="100" class="form-control"></div>
+            </div>
+            <div class="form-group required">
+              <label class="col-sm-2 control-label" for="cc-pickup-city">Πόλη</label>
+              <div class="col-sm-10"><input type="text" name="pickup_city" id="cc-pickup-city" value="{{ pickup_city|e }}" maxlength="60" class="form-control"></div>
+            </div>
+            <div class="form-group required">
+              <label class="col-sm-2 control-label" for="cc-pickup-postcode">ΤΚ</label>
+              <div class="col-sm-10"><input type="text" name="pickup_postcode" id="cc-pickup-postcode" value="{{ pickup_postcode|e }}" maxlength="6" class="form-control" style="max-width:140px;"></div>
+            </div>
+            <div class="form-group required">
+              <label class="col-sm-2 control-label" for="cc-pickup-date">Ημερομηνία παραλαβής</label>
+              <div class="col-sm-10"><select name="pickup_date" id="cc-pickup-date" class="form-control" style="max-width:240px;">
+                {% for d in pickup_dates %}<option value="{{ d.value|e }}"{% if d.value == pickup_date %} selected{% endif %}>{{ d.label|e }}</option>{% endfor %}
+              </select></div>
+            </div>
+            <div class="form-group">
+              <label class="col-sm-2 control-label" for="cc-pickup-from">Χρονικό διάστημα</label>
+              <div class="col-sm-10 form-inline">
+                Από <select name="pickup_time_from" id="cc-pickup-from" class="form-control"><option value="">—</option>{% for h in hours_from %}<option value="{{ h|e }}"{% if h == pickup_from %} selected{% endif %}>{{ h|e }}</option>{% endfor %}</select>
+                Έως <select name="pickup_time_to" id="cc-pickup-to" class="form-control"><option value="">—</option>{% for h in hours_to %}<option value="{{ h|e }}"{% if h == pickup_to %} selected{% endif %}>{{ h|e }}</option>{% endfor %}</select>
+                <p class="help-block">Προαιρετικό: τουλάχιστον 4 ώρες, 09:00–17:00.</p>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="col-sm-2 control-label" for="cc-courier-notes">Οδηγίες για τον courier</label>
+              <div class="col-sm-10"><textarea name="courier_notes" id="cc-courier-notes" rows="2" maxlength="{{ notes_max|e }}" class="form-control">{{ courier_notes|e }}</textarea></div>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Στοιχεία αποστολέα (πελάτη)</legend>
+            <div class="form-group required">
+              <label class="col-sm-2 control-label" for="cc-name">Ονοματεπώνυμο</label>
+              <div class="col-sm-10"><input type="text" name="name" id="cc-name" value="{{ name|e }}" maxlength="100" class="form-control"></div>
+            </div>
+            <div class="form-group">
+              <label class="col-sm-2 control-label" for="cc-mobile">Κινητό</label>
+              <div class="col-sm-10"><input type="tel" name="mobile" id="cc-mobile" value="{{ mobile|e }}" class="form-control" placeholder="69XXXXXXXX"></div>
+            </div>
+            <div class="form-group" id="cc-landline-row">
+              <label class="col-sm-2 control-label" for="cc-landline">Σταθερό</label>
+              <div class="col-sm-10"><input type="tel" name="landline" id="cc-landline" value="{{ landline|e }}" class="form-control" placeholder="2XXXXXXXXX"></div>
+            </div>
+            <p class="help-block" id="cc-phone-help"></p>
+            <div class="form-group">
+              <label class="col-sm-2 control-label" for="cc-reason">Αιτιολογία</label>
+              <div class="col-sm-10"><textarea name="reason" id="cc-reason" rows="2" maxlength="500" class="form-control" placeholder="Προαιρετικό, δεν εμφανίζεται στον πελάτη">{{ reason|e }}</textarea></div>
+            </div>
+            <div class="form-group">
+              <div class="col-sm-offset-2 col-sm-10"><div class="checkbox"><label><input type="checkbox" name="notify" value="1"{% if notify %} checked{% endif %}> Αποστολή email στον πελάτη ({{ email|e }})</label></div></div>
+            </div>
+          </fieldset>
+          <div class="buttons clearfix">
+            <div class="pull-left"><a href="{{ order_url|e }}" class="btn btn-default">Άκυρο</a></div>
+            <div class="pull-right">{% if can_modify %}<button type="submit" class="btn btn-primary" id="cc-submit"><i class="fa fa-truck"></i> Δημιουργία επιστροφής</button>{% else %}<span class="text-danger">Δεν έχεις δικαίωμα τροποποίησης του Courier Center.</span>{% endif %}</div>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+    (function () {
+      var form = document.getElementById('cc-return-form'), BOXNOW = {{ boxnow|json_encode }}, PICKUP = {{ pickup|json_encode }}, MIN_H = {{ min_hours|json_encode }};
+      var MSG_PHONE = {{ msg_phone|json_encode }}, MSG_MOBILE = {{ msg_mobile|json_encode }}, MSG_HALF = {{ msg_pickup_half|json_encode }}, MSG_WINDOW = {{ msg_pickup_window|json_encode }};
+      var from = document.getElementById('cc-pickup-from'), to = document.getElementById('cc-pickup-to');
+      function hour(v) { return v ? parseInt(String(v).substring(0, 2), 10) : NaN; }
+      function method() { var c = form.querySelector('input[name="method"]:checked'); return c ? c.value : ''; }
+      function digits(v) { v = String(v || '').replace(/\D+/g, ''); if (v.indexOf('0030') === 0) v = v.slice(4); else if (v.indexOf('30') === 0 && v.length === 12) v = v.slice(2); return v; }
+      function filterTo() {
+        var f = hour(from.value);
+        Array.prototype.forEach.call(to.options, function (o) { var ok = !o.value || isNaN(f) || hour(o.value) - f >= MIN_H; o.disabled = !ok; o.hidden = !ok; });
+        if (to.selectedOptions && to.selectedOptions[0] && to.selectedOptions[0].disabled) { to.value = ''; }
+      }
+      function refresh() {
+        var bn = method() === BOXNOW;
+        document.getElementById('cc-sizes').style.display = bn ? '' : 'none';
+        document.getElementById('cc-pickup').style.display = method() === PICKUP ? '' : 'none';
+        document.getElementById('cc-landline-row').style.display = bn ? 'none' : '';
+        document.getElementById('cc-phone-help').textContent = bn ? MSG_MOBILE : MSG_PHONE;
+      }
+      from.addEventListener('change', filterTo);
+      form.addEventListener('change', refresh);
+      filterTo();
+      refresh();
+      form.addEventListener('submit', function (e) {
+        var any = Array.prototype.some.call(form.querySelectorAll('input[name^="qty["]'), function (i) { return parseInt(i.value || '0', 10) > 0; });
+        var m = digits(form.mobile.value), l = digits(form.landline.value), bn = method() === BOXNOW, pk = method() === PICKUP;
+        var err = '';
+        if (!any) err = 'Επιλέξτε τουλάχιστον ένα τεμάχιο για επιστροφή.';
+        else if (bn && !/^69\d{8}$/.test(m) && !/^69\d{8}$/.test(l)) err = MSG_MOBILE;
+        else if (!bn && !/^(69|2)\d{8,9}$/.test(m) && !/^(69|2)\d{8,9}$/.test(l)) err = MSG_PHONE;
+        else if (bn && !form.querySelector('input[name="locker_size"]:checked')) err = 'Επιλέξτε μέγεθος BOX NOW locker (Μικρό, Μεσαίο ή Μεγάλο).';
+        else if (pk && (!form.pickup_address.value.trim() || !form.pickup_city.value.trim())) err = 'Συμπληρώστε διεύθυνση και πόλη παραλαβής.';
+        else if (pk && !/^\d{5}$/.test(form.pickup_postcode.value.replace(/\s+/g, ''))) err = 'Ο ΤΚ της διεύθυνσης παραλαβής πρέπει να έχει 5 ψηφία.';
+        else if (pk && (!from.value !== !to.value)) err = MSG_HALF;
+        else if (pk && from.value && hour(to.value) - hour(from.value) < MIN_H) err = MSG_WINDOW;
+        if (err) { e.preventDefault(); alert(err); return; }
+        var b = document.getElementById('cc-submit');
+        if (b) { b.disabled = true; b.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Δημιουργία...'; }
+      });
+    })();
+    </script>
+    {% endif %}
+  </div>
+</div>
+{{ footer }}

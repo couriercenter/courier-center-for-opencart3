@@ -20,6 +20,7 @@ class ControllerExtensionShippingCourierCenterOrderList extends Controller {
             $ids = array_values(array_unique(array_map('intval', $m[1])));
             $shipments = array();
             $methods = array();
+            $returns = array();
             $svc = $this->ccService();
             if ($ids) {
                 $this->load->model('extension/shipping/courier_center');
@@ -37,6 +38,11 @@ class ControllerExtensionShippingCourierCenterOrderList extends Controller {
                 foreach ($this->model_extension_shipping_courier_center->getOrderShippingRows($ids) as $id => $row) {
                     $methods[(string)$id] = array('name' => \Opencart\Extension\Couriercenter\Library\CCVoucherService::shippingName($row), 'managed' => $svc->isHandledOrder($row));
                 }
+                // «Επιστροφή»: status of the newest return request (+N when there are more)
+                $repo = new \Opencart\Extension\Couriercenter\Library\CCReturnsRepo($this->db, DB_PREFIX);
+                foreach ($repo->summaryForOrders($ids) as $id => $r) {
+                    $returns[(string)$id] = \Opencart\Extension\Couriercenter\Library\CCReturnsRules::status_label($r['status']) . ($r['count'] > 1 ? ' (+' . ($r['count'] - 1) . ')' : '');
+                }
             }
             $tracking = (string)$svc->setting('tracking_url');
             $points = array();
@@ -49,6 +55,7 @@ class ControllerExtensionShippingCourierCenterOrderList extends Controller {
             $script = $this->load->view('extension/shipping/courier_center/order_list_inject', array(
                 'shipments'    => (object)$shipments,
                 'methods'      => (object)$methods,
+                'returns'      => (object)$returns,
                 'tracking_url' => $tracking !== '' ? $tracking : 'https://www.courier.gr/track/result?tracknr={{tracking}}',
                 'points'       => $points,
                 'default_point' => $svc->points()->defaultCode(),

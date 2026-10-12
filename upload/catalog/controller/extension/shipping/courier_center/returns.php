@@ -111,6 +111,13 @@ class ControllerExtensionShippingCourierCenterReturns extends Controller {
                 'mobile'      => $this->ccText($posted['mobile'] ?? ''),
                 'landline'    => $this->ccText($posted['landline'] ?? ''),
                 'locker_size' => (string)($posted['locker_size'] ?? ''),
+                'pickup_address'   => $this->ccText($posted['pickup_address'] ?? ''),
+                'pickup_city'      => $this->ccText($posted['pickup_city'] ?? ''),
+                'pickup_postcode'  => $this->ccText($posted['pickup_postcode'] ?? ''),
+                'pickup_date'      => (string)($posted['pickup_date'] ?? ''),
+                'pickup_time_from' => (string)($posted['pickup_time_from'] ?? ''),
+                'pickup_time_to'   => (string)($posted['pickup_time_to'] ?? ''),
+                'courier_notes'    => $this->ccText($posted['courier_notes'] ?? ''),
             ));
             if ($r['ok']) {
                 $row = $svc->repo()->get((int)$r['id']);
@@ -157,7 +164,7 @@ class ControllerExtensionShippingCourierCenterReturns extends Controller {
             'boxnow'      => CCReturnsRules::METHOD_BOXNOW,
             'msg_phone'   => CCReturnsRules::MSG_PHONE,
             'msg_mobile'  => CCReturnsRules::MSG_MOBILE,
-        ));
+        ) + $this->ccPickupView($posted, $defaults));
     }
 
     private function renderPage(array $data) {
@@ -189,14 +196,16 @@ class ControllerExtensionShippingCourierCenterReturns extends Controller {
             $items[] = (string)($line['name'] ?? '') . ' × ' . (int)($line['qty'] ?? 0);
         }
         $tracking = (string)$r['display_status'];
+        $pickup = ($r['method'] === CCReturnsRules::METHOD_PICKUP && !$created && $st !== CCReturnsRules::ST_REJECTED) ? \Opencart\Extension\Couriercenter\Library\CCReturnsService::pickupLabel($r) : '';
         return array(
             'id'           => (int)$r['id'],
             'date'         => (string)$r['created_at'],
             'status_label' => CCReturnsRules::customer_status_label($st),
             'method_label' => CCReturnsRules::method_label($r['method']),
             'items'        => implode(', ', $items),
+            'pickup'       => $pickup,
             'parts'        => $parts,
-            'instructions' => $created ? ($r['method'] === CCReturnsRules::METHOD_BOXNOW ? $svc->settings()->boxnowInstructions() : $svc->settings()->dropoffInstructions()) : '',
+            'instructions' => $created ? $svc->settings()->instructionsFor($r['method']) : '',
             'tracking'     => ($created && $tracking !== '' && $tracking !== 'None' && (string)$r['shipment_status'] !== '0') ? $tracking : '',
         );
     }

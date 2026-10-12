@@ -40,7 +40,10 @@ trait CCControllerTrait {
             });
     }
 
-    /** One of the returns emails (received / created / rejected) to the order's customer. */
+    /**
+     * One of the returns emails: received / created / rejected to the order's customer (the service
+     * already filtered them), submitted = «Νέο αίτημα επιστροφής» to the shop.
+     */
     protected function ccSendReturnMail($event, $id) {
         $svc = new \Opencart\Extension\Couriercenter\Library\CCReturnsService($this->db, DB_PREFIX, $this->config);
         $row = $svc->repo()->get((int)$id);
@@ -48,17 +51,70 @@ trait CCControllerTrait {
             return;
         }
         $order = $svc->getOrder((int)$row['order_id']);
+        if ($event === 'submitted') {
+            if (!$svc->settings()->adminNotify()) {
+                return;
+            }
+            $admin = $this->ccState()->get('admin_url', '');
+            $requests = $admin !== '' ? $admin . 'index.php?route=extension/shipping/courier_center/returns' : '';
+            $order_url = $admin !== '' ? $admin . 'index.php?route=sale/order/info&order_id=' . (int)$row['order_id'] : '';
+            $m = \Opencart\Extension\Couriercenter\Library\CCMailContent::adminNewReturnEmail($row, $order, $requests, $order_url);
+            foreach ($svc->settings()->adminEmails((string)$this->config->get('config_email')) as $to) {
+                $this->ccMail($to, $m['subject'], $m['html'], $m['text']);
+            }
+            return;
+        }
         $to = trim((string)($order['email'] ?? ''));
         if ($to === '') {
             return;
         }
-        $instructions = $row['method'] === \Opencart\Extension\Couriercenter\Library\CCReturnsRules::METHOD_BOXNOW
-            ? $svc->settings()->boxnowInstructions() : $svc->settings()->dropoffInstructions();
-        $m = \Opencart\Extension\Couriercenter\Library\CCMailContent::returnEmail($event, $row, $order, $instructions);
+        $m = \Opencart\Extension\Couriercenter\Library\CCMailContent::returnEmail($event, $row, $order, $svc->settings()->instructionsFor($row['method']));
         if (!$m) {
             return;
         }
         $this->ccMail($to, $m['subject'], $m['html'], $m['text']);
+    }
+
+    /** The Pickup fields of the form (customer form and the admin «Νέα επιστροφή»). */
+    protected function ccPickupView(array $posted, array $defaults): array {
+        $dates = \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_dates(\Opencart\Extension\Couriercenter\Library\CCReturnsRules::now_local());
+        $date = (string)($posted['pickup_date'] ?? '');
+        $date_options = array();
+        foreach ($dates as $d) {
+            $date_options[] = array('value' => $d, 'label' => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_date_label($d));
+        }
+        $text = function ($k, $def) use ($posted) {
+            return $posted ? html_entity_decode((string)($posted[$k] ?? ''), ENT_QUOTES, 'UTF-8') : (string)$def;
+        };
+        return array(
+            'pickup'          => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::METHOD_PICKUP,
+            'pickup_address'  => $text('pickup_address', $defaults['address'] ?? ''),
+            'pickup_city'     => $text('pickup_city', $defaults['city'] ?? ''),
+            'pickup_postcode' => $text('pickup_postcode', $defaults['postcode'] ?? ''),
+            'pickup_dates'    => $date_options,
+            'pickup_date'     => in_array($date, $dates, true) ? $date : $dates[0],
+            'pickup_from'     => (string)($posted['pickup_time_from'] ?? ''),
+            'pickup_to'       => (string)($posted['pickup_time_to'] ?? ''),
+            'hours_from'      => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_hours_from(),
+            'hours_to'        => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_hours_to(),
+            'min_hours'       => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::PICKUP_MIN_HOURS,
+            'courier_notes'   => $text('courier_notes', ''),
+            'notes_max'       => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::COURIER_NOTES_MAX,
+            'msg_pickup_half'   => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::MSG_PICKUP_HALF,
+            'msg_pickup_window' => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::MSG_PICKUP_WINDOW,
+        );
+    }
+
+    /** Remember the admin base URL (admin pages only): the storefront needs it for the links of the shop email. */
+    protected function ccRememberAdminUrl() {
+        if (!defined('HTTP_CATALOG')) {
+            return;
+        }
+        $url = (defined('HTTPS_SERVER') && HTTPS_SERVER) ? HTTPS_SERVER : HTTP_SERVER;
+        $state = $this->ccState();
+        if ($url !== '' && $state->get('admin_url', '') !== $url) {
+            $state->set('admin_url', $url);
+        }
     }
 
     /** Send with the shop's mail settings; failures go to the log, never into the page. */
@@ -100,6 +156,10 @@ trait CCControllerTrait {
             'status'        => $st,
             'status_label'  => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::status_label($st),
             'method_label'  => \Opencart\Extension\Couriercenter\Library\CCReturnsRules::method_label($r['method']),
+            'from_shop'     => ($r['origin'] ?? '') === 'shop',
+            'pickup_label'  => $r['method'] === \Opencart\Extension\Couriercenter\Library\CCReturnsRules::METHOD_PICKUP ? \Opencart\Extension\Couriercenter\Library\CCReturnsService::pickupLabel($r) : '',
+            'pickup_address' => $r['method'] === \Opencart\Extension\Couriercenter\Library\CCReturnsRules::METHOD_PICKUP ? \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_address($r['shipper_details']) : '',
+            'courier_notes' => (string)($r['shipper_details']['courier_notes'] ?? ''),
             'is_boxnow'     => $r['method'] === \Opencart\Extension\Couriercenter\Library\CCReturnsRules::METHOD_BOXNOW,
             'locker_label'  => isset(\Opencart\Extension\Couriercenter\Library\CCReturnsRules::LOCKER_SIZES[$r['locker_size']]) ? \Opencart\Extension\Couriercenter\Library\CCReturnsRules::LOCKER_SIZES[$r['locker_size']]['label'] : '',
             'items'         => implode(', ', $items),

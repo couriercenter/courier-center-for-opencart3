@@ -25,6 +25,10 @@ class CCSchema {
             'courier_center_mail_edit'     => array('catalog/view/mail/order_edit/after', 'extension/shipping/courier_center/email/orderEdit', 0),
             'courier_center_returns_menu'  => array('admin/view/common/column_left/before', 'extension/shipping/courier_center/returns/menu', 0),
             'courier_center_returns_order' => array('catalog/view/account/order_info/after', 'extension/shipping/courier_center/returns/orderInfo', 0),
+            // «N αιτήματα επιστροφής χρειάζονται ενέργεια» on the dashboard and the order pages
+            'courier_center_returns_note_dash'  => array('admin/view/common/dashboard/after', 'extension/shipping/courier_center/returns/notice', 0),
+            'courier_center_returns_note_list'  => array('admin/view/sale/order_list/after', 'extension/shipping/courier_center/returns/notice', 1),
+            'courier_center_returns_note_info'  => array('admin/view/sale/order_info/after', 'extension/shipping/courier_center/returns/notice', 0),
             'courier_center_boxnow_widget' => array('catalog/view/common/footer/after', 'extension/shipping/courier_center/boxnow/widget', 0),
             'courier_center_boxnow_order'  => array('catalog/model/checkout/order/addOrder/after', 'extension/shipping/courier_center/boxnow/saveToOrder', 0),
             'courier_center_boxnow_clear'  => array('catalog/controller/checkout/success/before', 'extension/shipping/courier_center/boxnow/clearSession', 0),

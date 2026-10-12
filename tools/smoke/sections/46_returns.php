@@ -1,7 +1,8 @@
 <?php
 /**
- * 1.1.0 customer returns with the real API: customer request from account/order/info (Drop Off and BOX NOW),
- * admin approval → return shipment (Reference1 = original AWB), tracking, emails. Every return AWB is voided here.
+ * 1.1.0 returns with the real API: customer request from account/order/info (Drop Off, BOX NOW and Pickup),
+ * admin approval → return shipment (Reference1 = original AWB), tracking, emails, shop notice / counter / order
+ * list column, and a return the shop creates («Νέα επιστροφή»). Every return AWB is voided here.
  */
 return function (SmokeContext $c) {
     $s = $c->shop;
@@ -10,7 +11,8 @@ return function (SmokeContext $c) {
         $s->exec("DELETE FROM `{p}setting` WHERE `key` = 'shipping_courier_center_$key'");
         $s->exec("INSERT INTO `{p}setting` SET `store_id` = 0, `code` = 'shipping_courier_center', `key` = 'shipping_courier_center_$key', `value` = '" . $s->db()->real_escape_string($value) . "', `serialized` = 0");
     };
-    foreach (array('returns_enabled' => '1', 'returns_require_approval' => '1', 'returns_method_dropoff' => '1', 'returns_method_boxnow' => '1', 'returns_window_days' => '14') as $k => $v) {
+    foreach (array('returns_enabled' => '1', 'returns_require_approval' => '1', 'returns_method_dropoff' => '1', 'returns_method_boxnow' => '1', 'returns_method_pickup' => '1',
+        'returns_window_days' => '14', 'returns_admin_notify' => '1', 'returns_admin_emails' => 'shop-returns@example.com') as $k => $v) {
         $set($k, $v);
     }
     cc_mailpit_clear();
@@ -21,7 +23,7 @@ return function (SmokeContext $c) {
     $s->exec("INSERT INTO `{p}customer` SET `customer_group_id` = 1, `store_id` = 0, `language_id` = 1, `firstname` = 'Ρένα', `lastname` = 'Επιστροφή', `email` = '$email', `telephone` = '6912345678', `fax` = '', `password` = '" . md5('ret123') . "', `salt` = '', `newsletter` = 0, `address_id` = 0, `custom_field` = '', `ip` = '', `status` = 1, `safe` = 0, `token` = '', `code` = '', `date_added` = NOW()");
     $cust = $s->row("SELECT `customer_id` FROM `{p}customer` WHERE `email` = '$email'");
     $cid = (int)$cust['customer_id'];
-    $order = $s->createApiOrder('courier_center.courier_center', 'bank_transfer', array(43 => 2, 40 => 1));
+    $order = $s->createApiOrder('courier_center.courier_center', 'bank_transfer', array(43 => 3, 40 => 2));
     $s->exec("UPDATE `{p}order` SET `customer_id` = '$cid', `email` = '$email' WHERE `order_id` = '$order'");
     $r = $s->adminJson('extension/shipping/courier_center/createVoucher', array('order_id' => $order, 'service_type' => 'next_day'));
     $c->ok(!empty($r['success']), 'original voucher: ' . (isset($r['error']) ? $r['error'] : $r['voucher']));
@@ -61,6 +63,27 @@ return function (SmokeContext $c) {
     $c->ok($bad['status'] === 200 && strpos($bad['body'], 'κινητό') !== false, 'BOX NOW without a mobile is refused');
     $box = $request('BOXNOW', array('locker_size' => 'medium'));
     $c->ok(cc_mail_with(array('το αίτημα ελήφθη', '#' . $order)), 'customer got the «ελήφθη» email');
+    require_once cc_repo_root() . '/upload/system/library/couriercenter/CCReturnsRules.php';
+    $dates = \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_dates(\Opencart\Extension\Couriercenter\Library\CCReturnsRules::now_local());
+    $form = $cli->get($s->shopUrl('extension/shipping/courier_center/returns', array('order_id' => $order)))['body'];
+    $c->ok(strpos($form, 'id="cc-pickup"') !== false && strpos($form, 'value="' . $dates[0] . '"') !== false && strpos($form, 'name="pickup_time_from"') !== false, 'the form offers Pickup (dates from the next working day, window)');
+    $pickupFields = array('pickup_address' => 'Ακαδημίας 10', 'pickup_city' => 'ΑΘΗΝΑ', 'pickup_postcode' => '10679', 'pickup_date' => $dates[1],
+        'pickup_time_from' => '10:00', 'pickup_time_to' => '14:00', 'courier_notes' => 'smoke: 2ος όροφος');
+    $short = $cli->post($s->shopUrl('extension/shipping/courier_center/returns', array('order_id' => $order)), array_merge($pickupFields,
+        array('request_uid' => 'pkbad' . substr(md5((string)microtime(true)), 0, 10), 'method' => 'COURIER_CENTER_PICKUP', 'name' => 'Ρένα', 'mobile' => '6912345678', 'pickup_time_to' => '12:00', 'qty[' . (isset($qm[1]) ? $qm[1] : 0) . ']' => '1')));
+    $c->ok($short['status'] === 200 && strpos($short['body'], 'τουλάχιστον 4 ώρες') !== false, 'Pickup window under 4 hours is refused');
+    $pick = $request('COURIER_CENTER_PICKUP', $pickupFields);
+    $prow = $pick ? $s->row("SELECT * FROM `{p}cc_return_requests` WHERE `id` = '$pick'") : array();
+    $c->ok($prow && $prow['pickup_date'] === $dates[1] && $prow['pickup_time_from'] === '10:00' && strpos($prow['shipper_details'], '10679') !== false, 'Pickup request stored with date / window / address');
+    $c->ok(cc_mail_with(array('Νέο αίτημα επιστροφής', '#' . $order, 'Παραλαβή:')), 'shop got the «Νέο αίτημα επιστροφής» email (with the pickup)');
+    $info3 = $cli->get($s->shopUrl('account/order/info', array('order_id' => $order)))['body'];
+    $c->ok(strpos($info3, 'Παραλαβή: ') !== false, 'customer sees the pickup date of the pending request');
+    // Shop notifications while requests wait
+    $dash = $s->adminGet('common/dashboard')['body'];
+    $c->ok(strpos($dash, 'id="cc-returns-notice"') !== false && strpos($dash, 'αιτήματα επιστροφής') !== false, 'dashboard notice about the waiting requests');
+    $c->ok(preg_match('/Επιστροφές Courier Center \((\d+)\)/u', $dash, $mm) === 1 && (int)$mm[1] >= 3, 'menu counter (' . (isset($mm[1]) ? $mm[1] : '-') . ')');
+    $olist = $s->adminGet('sale/order')['body'];
+    $c->ok(preg_match('/var RETURNS = (\{.*?\});/', $olist, $rm) === 1 && strpos($rm[1], '"' . $order . '"') !== false, 'order list column «Επιστροφή»');
 
     // Someone else cannot open the form of this order.
     $other = new SmokeHttp(cc_state_dir() . "/{$s->id}-other.cookies");
@@ -71,7 +94,7 @@ return function (SmokeContext $c) {
     $list = $s->adminGet('extension/shipping/courier_center/returns')['body'];
     $c->ok(strpos($list, 'Επιστροφές Courier Center') !== false && strpos($list, 'data-id="' . $drop . '"') !== false, 'admin returns page lists the requests');
     $created = array();
-    foreach (array('Drop Off' => $drop, 'BOX NOW' => $box) as $label => $id) {
+    foreach (array('Drop Off' => $drop, 'BOX NOW' => $box, 'Pickup' => $pick) as $label => $id) {
         if (!$id) {
             continue;
         }
@@ -102,7 +125,32 @@ return function (SmokeContext $c) {
         $info2 = $cli->get($s->shopUrl('account/order/info', array('order_id' => $order)))['body'];
         $c->ok(strpos($info2, 'Η επιστροφή σας δημιουργήθηκε επιτυχώς!') !== false, 'customer sees the created return on the order page');
         $panel = $s->adminGet('sale/order/info', array('order_id' => $order))['body'];
-        $c->ok(strpos($panel, 'Επιστροφές πελάτη') !== false, 'order tab lists the returns');
+        $c->ok(strpos($panel, '↩️ Επιστροφές') !== false && strpos($panel, 'id="cc-add-return"') !== false && strpos($panel, 'Από: Πελάτης') !== false, 'order tab lists the returns + «Νέα επιστροφή»');
+        if (isset($created['Pickup'])) {
+            $c->ok(strpos($panel, 'Παραλαβή: <strong>') !== false, 'order tab shows the pickup date');
+            $pd = $api->get_shipment_details($created['Pickup']['return_awb']);
+            $pi = isset($pd['ShipmentDetails'][0]['ShipmentInfo']) ? $pd['ShipmentDetails'][0]['ShipmentInfo'] : array();
+            $c->ok(isset($pi['Shipper']['ZipCode']) && trim((string)$pi['Shipper']['ZipCode']) === '10679', 'Pickup shipper = customer address on the API');
+        }
+        // «Νέα επιστροφή» of the shop (Drop Off, no customer email)
+        $page = $s->adminGet('extension/shipping/courier_center/returns/add', array('order_id' => $order))['body'];
+        if (preg_match('/name="request_uid" value="([^"]+)"/', $page, $su) && preg_match_all('/name="qty\[(\d+)\]"/', $page, $sq)) {
+            cc_mailpit_clear();
+            $post = array('request_uid' => $su[1], 'method' => 'COURIER_CENTER_DROPOFF', 'name' => 'Ρένα Επιστροφή', 'mobile' => '6912345678', 'reason' => 'smoke shop');
+            $post['qty[' . end($sq[1]) . ']'] = '1';
+            $res = $s->adminPost('extension/shipping/courier_center/returns/add', $post, array('order_id' => $order));
+            $srow = $s->row("SELECT * FROM `{p}cc_return_requests` WHERE `request_uid` = '" . $s->db()->real_escape_string($su[1]) . "'");
+            $c->ok($res['status'] === 302 && $srow && $srow['origin'] === 'shop' && $srow['status'] === 'shipment_created' && (int)$srow['notify_customer'] === 0,
+                'shop return created at once: ' . ($srow ? $srow['return_awb'] . ' ' . $srow['last_error'] : 'no row'));
+            if ($srow && $srow['return_awb'] !== '') {
+                $created['Κατάστημα'] = $srow;
+            }
+            $after = $s->adminGet('sale/order/info', array('order_id' => $order))['body'];
+            $c->ok(strpos($after, 'id="cc-return-notice"') !== false && strpos($after, 'Από: Κατάστημα') !== false, 'order tab: success notice + «Από: Κατάστημα»');
+            $c->ok(!cc_mail_with(array('δημιουργήθηκε η αποστολή', '#' . $order)), 'no customer email without «Αποστολή email στον πελάτη»');
+        } else {
+            $c->fail('«Νέα επιστροφή» page did not render');
+        }
         // The original voucher's status must still be the ORIGINAL's (its details also list the returns).
         $st = $api->get_shipment_details($awb);
         require_once cc_repo_root() . '/upload/system/library/couriercenter/CCStatusTracker.php';

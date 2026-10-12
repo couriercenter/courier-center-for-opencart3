@@ -79,6 +79,12 @@ class ControllerExtensionShippingCourierCenterOrder extends Controller {
             foreach ($svc_ret->repo()->forOrder($order_id) as $r) {
                 $returns[] = $this->ccReturnRow($r);
             }
+            $can_add_return = $svc_ret->hasActiveAwb($order_id) && $this->ccCanModify();
+            $return_notice = null;
+            if (isset($this->session->data['cc_return_notice'])) {
+                $return_notice = $this->session->data['cc_return_notice'];
+                unset($this->session->data['cc_return_notice']);
+            }
 
             $panel = array(
                 'order_id'            => $order_id,
@@ -105,6 +111,9 @@ class ControllerExtensionShippingCourierCenterOrder extends Controller {
                 'consignee'           => $this->ccText($consignee),
                 'returns'             => $returns,
                 'returns_js'          => $returns ? $this->load->view('extension/shipping/courier_center/returns_js', array('urls' => $this->ccReturnActionUrls())) : '',
+                'can_add_return'      => $can_add_return,
+                'url_add_return'      => $this->ccLink($route_base . 'returns/add', 'order_id=' . $order_id),
+                'return_notice'       => $return_notice,
             );
             if (!isset($data['tabs']) || !is_array($data['tabs'])) {
                 $data['tabs'] = array();

@@ -9,7 +9,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -73,7 +73,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -165,7 +165,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -234,7 +234,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -292,7 +292,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -356,7 +356,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -420,7 +420,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -484,7 +484,7 @@
                 "ApiKey": ""
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -548,7 +548,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },
@@ -612,7 +612,7 @@
                 "ApiKey": "key"
             },
             "shipmentDate": "DATE",
-            "comments": "Order #1001",
+            "comments": "",
             "Requestor": {
                 "CarrierBillingAccount": "100-0000-0000"
             },

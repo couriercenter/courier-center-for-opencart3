@@ -39,6 +39,8 @@ return function (SmokeContext $c) {
     $cli->post($s->shopUrl('account/login'), array('email' => $email, 'password' => 'ret123'));
     $info = $cli->get($s->shopUrl('account/order/info', array('order_id' => $order)))['body'];
     $c->ok(strpos($info, 'id="cc-returns"') !== false && strpos($info, 'Αίτημα επιστροφής') !== false, 'account order page offers the return request');
+    $olist = $cli->get($s->shopUrl('account/order'))['body'];
+    $c->ok(strpos($olist, 'cc-return-btn') !== false && strpos($olist, 'Αίτημα Επιστροφής') !== false, 'customer orders list: «Αίτημα Επιστροφής» button for the eligible order');
 
     $returns = array();
     $request = function ($method, array $extra) use ($cli, $s, $order, &$returns, $c) {
@@ -81,7 +83,7 @@ return function (SmokeContext $c) {
     // Shop notifications while requests wait
     $dash = $s->adminGet('common/dashboard')['body'];
     $c->ok(strpos($dash, 'id="cc-returns-notice"') !== false && strpos($dash, 'αιτήματα επιστροφής') !== false, 'dashboard notice about the waiting requests');
-    $c->ok(preg_match('/Επιστροφές Courier Center \((\d+)\)/u', $dash, $mm) === 1 && (int)$mm[1] >= 3, 'menu counter (' . (isset($mm[1]) ? $mm[1] : '-') . ')');
+    $c->ok(preg_match('/Courier Center \((\d+)\)/u', $dash, $mm) === 1 && (int)$mm[1] >= 3, 'menu counter (' . (isset($mm[1]) ? $mm[1] : '-') . ')');
     $olist = $s->adminGet('sale/order')['body'];
     $c->ok(preg_match('/var RETURNS = (\{.*?\});/', $olist, $rm) === 1 && strpos($rm[1], '"' . $order . '"') !== false, 'order list column «Επιστροφή»');
 

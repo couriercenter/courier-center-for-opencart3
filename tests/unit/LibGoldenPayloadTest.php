@@ -4,7 +4,7 @@ require_once CC_LIB . '/CCOrderAdapter.php';
 require_once CC_LIB . '/CCShipmentBuilder.php';
 require_once CC_REPO . '/tests/fixtures/orders.php';
 
-/** OC4 behaviour must not change: same payloads/validations as the original OC4 code (spec 7.3). */
+/** Same payloads/validations as the original OC4 code (spec 7.3), except the voucher comments: only the customer's note (no "Order #id", it is in Reference1) - parity with WooCommerce 1.4.5. */
 function test_lib_golden_payloads_match_the_original_oc4_library() {
     $golden = json_decode(file_get_contents(CC_REPO . '/tests/fixtures/golden-payloads.json'), true);
     assert_true(is_array($golden) && count($golden) === 10, 'golden fixtures missing');

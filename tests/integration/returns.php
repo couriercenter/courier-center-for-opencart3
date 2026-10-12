@@ -297,6 +297,49 @@ check($rs->repo()->pendingCount() === 1, 'pendingCount counts pending');
 $sum = $rs->repo()->summaryForOrders(array(10, 11, 12));
 check($sum[11]['count'] === 2 && $sum[11]['status'] === R::ST_PENDING && !isset($sum[12]) && $sum[10]['count'] === 6, 'summaryForOrders: newest status + count');
 
+echo "Round 3: emails to deliver, customer toggles, order completed\n";
+$config->set('shipping_courier_center_returns_admin_emails', 'a@x.gr, b@x.gr');
+$config->set('shipping_courier_center_returns_enabled', '1');
+$links = array('requests' => 'https://shop/admin/index.php?route=r', 'order' => 'https://shop/admin/index.php?route=o&order_id=');
+$rsm = $mk();
+$mails = $rsm->mailsFor('received', $s5['id'], $links, 'shop@x.gr');
+check(count($mails) === 1 && $mails[0]['to'] === 'm@x.gr' && strpos($mails[0]['subject'], '#10') !== false, 'mailsFor(received) → the order customer');
+$mails = $rsm->mailsFor('submitted', $s5['id'], $links, 'shop@x.gr');
+check(count($mails) === 2 && $mails[0]['to'] === 'a@x.gr' && $mails[1]['to'] === 'b@x.gr' && strpos($mails[0]['html'], 'order_id=10') !== false, 'mailsFor(submitted) → every shop recipient, with the links');
+$config->set('shipping_courier_center_returns_admin_emails', '');
+check($rsm->mailsFor('submitted', $s5['id'], array(), 'shop@x.gr')[0]['to'] === 'shop@x.gr', 'no recipients saved → the shop email');
+$config->set('shipping_courier_center_returns_admin_notify', '0');
+check($rsm->mailsFor('submitted', $s5['id'], array(), 'shop@x.gr') === array(), 'shop email switched off');
+$config->set('shipping_courier_center_returns_admin_notify', '1');
+$events = array();
+$rs = $mk();
+$config->set('shipping_courier_center_returns_email_received', '0');
+$sx = $rs->submit($order, 3, array('request_uid' => 'uid-000020', 'method' => R::METHOD_DROPOFF, 'items' => array($ids[2] => '1'), 'name' => 'Μαρία', 'mobile' => '6912345678'));
+check($sx['ok'] && $events === array('submitted:' . $sx['id']), 'customer «received» email switched off: only the shop email is sent');
+$config->set('shipping_courier_center_returns_email_received', '1');
+
+$vs = new CCVoucherService($db, $config, $P, new FakeApi());
+$ce = $vs->completedEmail(10);
+check($ce && $ce['to'] === 'm@x.gr' && $ce['subject'] === 'Η παραγγελία #10 ολοκληρώθηκε' && strpos($ce['text'], 'AWB10') !== false && strpos($ce['text'], 'Μπλούζα × 3') !== false, 'completedEmail: customer, AWB and items');
+$db->query("UPDATE `{$P}order` SET `email` = '' WHERE `order_id` = 10");
+check($vs->completedEmail(10) === array(), 'no email address → nothing');
+$db->query("UPDATE `{$P}order` SET `email` = 'm@x.gr' WHERE `order_id` = 10");
+
+// Delivered shipment of a processing order (11): auto-complete to the shop's first complete status + one email
+$config->set('shipping_courier_center_auto_complete_status_id', '');
+$delivered = new FakeApi(array('get_shipment_details' => array('Result' => 'Success', 'ShipmentDetails' => array(array('ShipmentInfo' => array('ShipmentAwb' => 'AWB11', 'ShipmentStatus' => '29', 'ShipmentStatusDesc' => 'Delivered'))))));
+$told = array();
+$vs = new CCVoucherService($db, $config, $P, $delivered);
+check($vs->autoCompleteStatusId() === 5, 'default auto-complete status = the first complete status');
+$ship = $vs->getShipment(11);
+$r = $vs->tracker(function ($oid) use (&$told) { $told[] = $oid; })->refresh($ship);
+$st = (int)$db->query("SELECT `order_status_id` FROM `{$P}order` WHERE `order_id` = 11")->row['order_status_id'];
+check($r['success'] && $r['completed'] && $st === 5 && $told === array(11), 'delivered → order completed + the customer is told once');
+$r2 = $vs->tracker(function ($oid) use (&$told) { $told[] = $oid; })->refresh($vs->getShipment(11));
+check(!$r2['completed'] && $told === array(11), 'already complete → nothing again');
+$config->set('shipping_courier_center_auto_complete_notify', '0');
+check($vs->autoCompleteNotify() === false, 'notify switched off');
+
 echo "Schema v2 → v3 upgrade\n";
 $db->query("ALTER TABLE `{$P}cc_return_requests` DROP COLUMN `origin`, DROP COLUMN `notify_customer`, DROP COLUMN `pickup_date`, DROP COLUMN `pickup_time_from`, DROP COLUMN `pickup_time_to`");
 $db->query("UPDATE `{$P}setting` SET `value` = '2' WHERE `key` = '" . CCDbSchema::STATE_KEY . "'");

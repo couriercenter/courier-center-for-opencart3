@@ -107,10 +107,14 @@ class ControllerExtensionShippingCourierCenterUpdate extends Controller {
             return;
         }
         try {
-            if (!$this->user->isLogged() || !$this->user->hasPermission('access', 'extension/shipping/courier_center')) {
+            if (!$this->user->isLogged()) {
                 return;
             }
             $this->ccBoot();
+            $this->ccPseudoCronTick();
+            if (!$this->user->hasPermission('access', 'extension/shipping/courier_center')) {
+                return;
+            }
             $state = $this->ccState();
             $installed = $state->get('installed_version', '');
             $stale = $installed !== CCVersion::get() || $state->get('installed_build', '') !== CCSchema::eventsSignature();

@@ -23,15 +23,26 @@ class ControllerExtensionShippingCourierCenterCron extends Controller {
             return;
         }
         @set_time_limit(0);
+        ignore_user_abort(true); // the pseudo-cron request does not wait for the answer
         CCErrorGuard::start($this->ccLogger());
         try {
             $site = (string)($this->config->get('config_ssl') ? $this->config->get('config_ssl') : $this->config->get('config_url'));
             $result = CCCronRunner::run($this->db, DB_PREFIX, $this->config, DIR_CACHE, $site, null, true, function ($event, $id) {
                 $this->ccSendReturnMail($event, (int)$id);
+            }, function ($order_id) {
+                $this->ccSendCompletedMail((int)$order_id);
             });
             $this->response->setOutput($result['message'] . "\n" . implode("\n", $result['lines']) . "\n");
         } finally {
             CCErrorGuard::stop();
+        }
+    }
+
+    /** Event catalog/view/common/footer/after: the pseudo-cron (see ccPseudoCronTick). Returns nothing. */
+    public function tick(&$route = '', &$data = array(), &$output = '') {
+        if ($this->ccPhpOk()) {
+            $this->ccBoot();
+            $this->ccPseudoCronTick();
         }
     }
 }

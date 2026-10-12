@@ -71,6 +71,53 @@ class ControllerExtensionShippingCourierCenterReturns extends Controller {
         }
     }
 
+    /**
+     * Event catalog/view/account/order_list/after: «Αίτημα Επιστροφής» next to «View» of every order the customer
+     * can return (completed, active voucher, inside the deadline, items left), like the WooCommerce orders list.
+     * Returns nothing.
+     */
+    public function orderList(&$route = '', &$data = array(), &$output = '') {
+        if (!is_string($output) || $output === '' || !$this->ccPhpOk() || !$this->customer->isLogged()) {
+            return;
+        }
+        try {
+            if ((string)$this->config->get('shipping_courier_center_returns_enabled') !== '1') {
+                return;
+            }
+            if (!preg_match_all('#<a\b[^>]*href="[^"]*account/order[^"]*order_id=(\d+)[^"]*"[^>]*>.*?</a>#s', $output, $hits, PREG_SET_ORDER)) {
+                return;
+            }
+            $this->ccBoot();
+            $svc = $this->ccReturns();
+            $customer_id = (int)$this->customer->getId();
+            $done = array();
+            foreach ($hits as $hit) {
+                $order_id = (int)$hit[1];
+                if (isset($done[$order_id])) {
+                    continue;
+                }
+                $done[$order_id] = true;
+                $order = $svc->getOrder($order_id);
+                if (!$order || !$svc->checkEligibility($order, $customer_id)['ok']) {
+                    continue;
+                }
+                $left = false;
+                foreach ($svc->availableItems($order) as $it) {
+                    if ($it['available'] > 0) {
+                        $left = true;
+                        break;
+                    }
+                }
+                if ($left) {
+                    $button = ' <a href="' . htmlspecialchars($this->ccCatalogLink(self::ROUTE, 'order_id=' . $order_id), ENT_QUOTES, 'UTF-8') . '" data-toggle="tooltip" title="Αίτημα Επιστροφής" class="btn btn-default cc-return-btn"><i class="fa fa-undo"></i> Αίτημα Επιστροφής</a>';
+                    $output = str_replace($hit[0], $hit[0] . $button, $output);
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->log->write('Courier Center returns (orders list): ' . $e->getMessage());
+        }
+    }
+
     /** The return request form (GET) and its submission (POST). */
     public function index() {
         $order_id = (int)($this->request->get['order_id'] ?? 0);

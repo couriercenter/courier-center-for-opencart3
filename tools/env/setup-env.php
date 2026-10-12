@@ -98,6 +98,6 @@ $db->query("UPDATE `{$p}product` SET `weight` = 0.5, `weight_class_id` = $kg, `l
 $db->query("UPDATE `{$p}product` SET `weight` = 1500, `weight_class_id` = $g, `length` = 30, `width` = 20, `height` = 5, `length_class_id` = $cm, `quantity` = 1000, `subtract` = 0, `status` = 1, `shipping` = 1 WHERE `product_id` = 43");
 // Telemetry / bug reports / updater of the extension go to the local sink, never to the real dashboard.
 cc_setting($db, $p, 'courier_center_state', 'shipping_courier_center_dev_overrides',
-    json_encode(array('dashboard_base' => 'http://127.0.0.1:8799', 'release_api' => 'http://127.0.0.1:8799/release.json')));
+    json_encode(array('dashboard_base' => 'http://127.0.0.1:8799', 'release_api' => 'http://127.0.0.1:8799/release.json', 'no_pseudo_cron' => true)));
 
 echo "OK {$e['id']}: {$e['url']}  admin: {$e['url']}{$e['admin_dir']}/  (admin / admin123)\n";

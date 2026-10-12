@@ -22,7 +22,7 @@ return function (SmokeContext $c) {
     @unlink(cc_state_dir() . '/sink.log');
     $s->adminGet('extension/extension/shipping/install', array('extension' => 'courier_center'));
     $c->ok((bool)$s->row("SELECT 1 AS x FROM `{p}extension` WHERE `type` = 'shipping' AND `code` = 'courier_center'"), 'extension installed');
-    $c->ok(count($s->rows("SELECT `code` FROM `{p}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 14, '14 events registered (1.1.0)');
+    $c->ok(count($s->rows("SELECT `code` FROM `{p}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 16, '16 events registered (1.1.0)');
     $c->ok(!$s->rows("SELECT `code` FROM `{p}event` WHERE `code` = 'courier_center_email'"), 'the 1.0.0 separate tracking email event is gone');
     foreach (array('cc_shipments', 'cc_locks', 'cc_return_requests') as $t) {
         $c->ok((bool)$s->rows("SHOW TABLES LIKE '" . $s->env['prefix'] . $t . "'"), $t . ' table');

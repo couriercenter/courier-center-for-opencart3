@@ -274,19 +274,30 @@ class ControllerExtensionShippingCourierCenterReturns extends Controller {
         $this->ccSendPdf($pdf, 'return_' . $row['return_awb'] . '.pdf');
     }
 
-    /** Event admin/view/common/column_left/before: «Επιστροφές Courier Center» under Sales. Returns nothing. */
+    /**
+     * Event admin/view/common/column_left/before: Sales → «Courier Center» with Manifest, Returns (with the count
+     * of requests that wait for action), Settings, Guide and Bug report - the submenu of the WooCommerce plugin.
+     * Returns nothing.
+     */
     public function menu(&$route = '', &$data = array()) {
         if (!is_array($data) || !isset($data['menus']) || !is_array($data['menus']) || !$this->ccPhpOk()) {
             return;
         }
         try {
-            if (!$this->user->hasPermission('access', 'extension/shipping/courier_center') || (string)$this->config->get('shipping_courier_center_returns_enabled') !== '1') {
+            if (!$this->user->hasPermission('access', 'extension/shipping/courier_center')) {
                 return;
             }
             $this->ccBoot();
             $this->ccRememberAdminUrl();
             $n = $this->pendingCount();
-            $entry = array('name' => 'Επιστροφές Courier Center' . ($n ? ' (' . $n . ')' : ''), 'href' => $this->ccLink(self::ROUTE), 'children' => array());
+            $base = 'extension/shipping/courier_center';
+            $entry = array('name' => 'Courier Center' . ($n ? ' (' . $n . ')' : ''), 'href' => '', 'children' => array(
+                array('name' => 'Manifest Παραλαβής', 'href' => $this->ccLink($base . '/manifest'), 'children' => array()),
+                array('name' => 'Επιστροφές' . ($n ? ' (' . $n . ')' : ''), 'href' => $this->ccLink(self::ROUTE), 'children' => array()),
+                array('name' => 'Ρυθμίσεις', 'href' => $this->ccLink($base), 'children' => array()),
+                array('name' => 'Οδηγίες', 'href' => $this->ccLink($base . '/docs'), 'children' => array()),
+                array('name' => 'Αναφορά Προβλήματος', 'href' => $this->ccLink($base . '/bug'), 'children' => array()),
+            ));
             foreach ($data['menus'] as $i => $m) {
                 if (($m['id'] ?? '') === 'menu-sale') {
                     $data['menus'][$i]['children'][] = $entry;

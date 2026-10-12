@@ -139,6 +139,21 @@
           </div>
           {% endfor %}
 
+          <hr><h4 style="padding-left:15px">📍 Στοιχεία Παραλήπτη</h4>
+          <p class="help-block" style="padding:0 15px;">Το voucher χρησιμοποιεί τη διεύθυνση αποστολής του πελάτη· όποιο πεδίο λείπει συμπληρώνεται από τη διεύθυνση χρέωσης.</p>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">Πεδίο αριθμού διεύθυνσης</label>
+            <div class="col-sm-10">
+              <select name="shipping_courier_center_street_number_field" class="form-control" style="max-width:420px;">
+                <option value="">— Ο αριθμός είναι ήδη μέσα στη Διεύθυνση (προεπιλογή) —</option>
+                {% for cf in address_custom_fields %}
+                <option value="{{ cf.id|e }}"{% if street_number_field == cf.id %} selected{% endif %}>{{ cf.name|e }} (custom field #{{ cf.id|e }})</option>
+                {% endfor %}
+              </select>
+              <p class="help-block">Μόνο για καταστήματα όπου το checkout έχει ξεχωριστό πεδίο «Αριθμός» (Custom Field τύπου κειμένου στη διεύθυνση, Πελάτες → Custom Fields). Ο αριθμός προστίθεται στη διεύθυνση του voucher, μόνο αν δεν υπάρχει ήδη μέσα της.</p>
+            </div>
+          </div>
+
           <hr><h4 style="padding-left:15px">📍 Σημεία αποστολής (υποκωδικοί)</h4>
           <div style="padding:0 15px;">
             <p class="help-block">Αν το κατάστημα στέλνει και από άλλα σημεία (υποκωδικοί του κεντρικού κωδικού), πρόσθεσέ τα εδώ και πάτα «Test &amp; Auto-fill» σε κάθε γραμμή. Σε κάθε voucher διαλέγεις από ποιο σημείο φεύγει· ο σταθμός του σημείου παίρνει την εντολή παραλαβής. <strong>Χωρίς υποκωδικούς όλα φεύγουν από την Έδρα, όπως πριν.</strong></p>
@@ -243,7 +258,7 @@
                 <option value="{{ m.code|e }}"{% if m.code in handled_shipping_methods %} selected{% endif %}>{{ m.name|e }}</option>
                 {% endfor %}
               </select>
-              <p class="help-block">Voucher Courier Center (αυτόματα / μαζικά / χειροκίνητα) δημιουργείται <strong>μόνο</strong> για παραγγελίες με αυτές τις μεθόδους — οι υπόλοιπες (π.χ. άλλος courier) αγνοούνται. Κράτα <strong>Ctrl</strong> για πολλαπλή επιλογή. <strong>Αν δεν επιλέξεις καμία, το plugin διαχειρίζεται ΟΛΕΣ τις παραγγελίες.</strong></p>
+              <p class="help-block">Voucher Courier Center (αυτόματα / μαζικά / χειροκίνητα) δημιουργείται <strong>μόνο</strong> για παραγγελίες με αυτές τις μεθόδους — οι υπόλοιπες (π.χ. άλλος courier) αγνοούνται. Κράτα <strong>Ctrl</strong> για πολλαπλή επιλογή. <strong>Απαιτείται τουλάχιστον μία επιλογή</strong> (αν αποθηκεύσεις χωρίς καμία, μένει η προηγούμενη λίστα και βλέπεις μήνυμα). Όσο δεν έχει ρυθμιστεί, το plugin διαχειρίζεται ΟΛΕΣ τις παραγγελίες.</p>
             </div>
           </div>
 
@@ -276,12 +291,23 @@
             <label class="col-sm-2 control-label">Σε παράδοση → status</label>
             <div class="col-sm-10">
               <select name="shipping_courier_center_auto_complete_status_id" class="form-control" style="max-width:320px">
+                <option value=""{% if auto_complete_status_id == '' %} selected{% endif %}>Αυτόματα — το πρώτο «Complete» status του καταστήματος (προεπιλογή)</option>
                 <option value="0"{% if auto_complete_status_id == '0' %} selected{% endif %}>Ανενεργό</option>
                 {% for order_status in order_statuses %}
                 <option value="{{ order_status.order_status_id|e }}"{% if auto_complete_status_id == order_status.order_status_id %} selected{% endif %}>{{ order_status.name|e }}</option>
                 {% endfor %}
               </select>
-              <p class="help-block">Όταν μια αποστολή παραδοθεί, η παραγγελία αλλάζει αυτόματα σε αυτό το status (π.χ. «Complete»). Άφησε «Ανενεργό» για να μην αλλάζει.</p>
+              <p class="help-block">Όταν μια αποστολή παραδοθεί, η παραγγελία ολοκληρώνεται αυτόματα — όπως στο WooCommerce (μόνο από ενεργές καταστάσεις· ακυρωμένες ή επιστραμμένες παραγγελίες δεν πειράζονται).</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">Email στον πελάτη</label>
+            <div class="col-sm-10">
+              <select name="shipping_courier_center_auto_complete_notify" class="form-control" style="width:auto">
+                <option value="1"{% if auto_complete_notify != '0' %} selected{% endif %}>Ναι — «Η παραγγελία ολοκληρώθηκε» όταν καταγράφεται η παράδοση</option>
+                <option value="0"{% if auto_complete_notify == '0' %} selected{% endif %}>Όχι</option>
+              </select>
+              <p class="help-block">Παραγγελίες που είχαν μείνει πίσω και ολοκληρώνονται αργότερα (με την παράδοση ήδη καταγεγραμμένη) ολοκληρώνονται χωρίς email, όπως στο WooCommerce.</p>
             </div>
           </div>
 
@@ -366,6 +392,17 @@
             </div>
           </div>
           {% endfor %}
+          {% for key, label in {'email_received': 'Email πελάτη «Το αίτημα ελήφθη»', 'email_created': 'Email πελάτη «Η επιστροφή δημιουργήθηκε»', 'email_rejected': 'Email πελάτη «Το αίτημα απορρίφθηκε»'} %}
+          <div class="form-group">
+            <label class="col-sm-2 control-label">{{ label|e }}</label>
+            <div class="col-sm-10">
+              <select name="shipping_courier_center_returns_{{ key|e }}" class="form-control" style="width:auto">
+                <option value="1"{% if attribute(returns, key) %} selected{% endif %}>Ενεργό</option>
+                <option value="0"{% if not attribute(returns, key) %} selected{% endif %}>Ανενεργό</option>
+              </select>
+            </div>
+          </div>
+          {% endfor %}
           <div class="form-group">
             <label class="col-sm-2 control-label">Email «Νέο αίτημα επιστροφής»</label>
             <div class="col-sm-10">
@@ -384,6 +421,16 @@
             <label class="col-sm-2 control-label">Τελευταία εκτέλεση</label>
             <div class="col-sm-10">
               <p class="form-control-static">{{ cron_last_run|e }} <span class="text-muted">· επόμενη: {{ cron_next_run|e }}</span></p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">Χωρίς cron job</label>
+            <div class="col-sm-10">
+              <select name="shipping_courier_center_pseudo_cron" class="form-control" style="width:auto">
+                <option value="1"{% if pseudo_cron != '0' %} selected{% endif %}>Ναι — ενημέρωση κάθε 2 ώρες αυτόματα, όπως το WP-Cron του WooCommerce</option>
+                <option value="0"{% if pseudo_cron == '0' %} selected{% endif %}>Όχι — θα στήσω cron job (τρόποι 1 ή 2)</option>
+              </select>
+              <p class="help-block">Όταν περάσουν 2 ώρες από την τελευταία εκτέλεση, η επόμενη επίσκεψη (πελάτη ή διαχειριστή) ξεκινά την ενημέρωση στο παρασκήνιο. Δεν χρειάζεται cPanel. Αν στήσεις cron job, δεν κάνει καμία δουλειά.</p>
             </div>
           </div>
           <div class="form-group">

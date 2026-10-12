@@ -42,40 +42,84 @@ trait CCControllerTrait {
 
     /**
      * One of the returns emails: received / created / rejected to the order's customer (the service
-     * already filtered them), submitted = «Νέο αίτημα επιστροφής» to the shop.
+     * already filtered them), submitted = «Νέο αίτημα επιστροφής» to the shop. What to send is decided
+     * by CCReturnsService::mailsFor(); this only delivers it.
      */
     protected function ccSendReturnMail($event, $id) {
         $svc = new \Opencart\Extension\Couriercenter\Library\CCReturnsService($this->db, DB_PREFIX, $this->config);
-        $row = $svc->repo()->get((int)$id);
-        if (!$row) {
-            return;
+        $admin = $this->ccState()->get('admin_url', '');
+        $links = $admin === '' ? array() : array(
+            'requests' => $admin . 'index.php?route=extension/shipping/courier_center/returns',
+            'order'    => $admin . 'index.php?route=sale/order/info&order_id=',
+        );
+        foreach ($svc->mailsFor($event, (int)$id, $links, (string)$this->config->get('config_email')) as $m) {
+            $this->ccMail($m['to'], $m['subject'], $m['html'], $m['text']);
         }
-        $order = $svc->getOrder((int)$row['order_id']);
-        if ($event === 'submitted') {
-            if (!$svc->settings()->adminNotify()) {
-                return;
-            }
-            $admin = $this->ccState()->get('admin_url', '');
-            $requests = $admin !== '' ? $admin . 'index.php?route=extension/shipping/courier_center/returns' : '';
-            $order_url = $admin !== '' ? $admin . 'index.php?route=sale/order/info&order_id=' . (int)$row['order_id'] : '';
-            $m = \Opencart\Extension\Couriercenter\Library\CCMailContent::adminNewReturnEmail($row, $order, $requests, $order_url);
-            foreach ($svc->settings()->adminEmails((string)$this->config->get('config_email')) as $to) {
-                $this->ccMail($to, $m['subject'], $m['html'], $m['text']);
-            }
-            return;
-        }
-        $to = trim((string)($order['email'] ?? ''));
-        if ($to === '') {
-            return;
-        }
-        $m = \Opencart\Extension\Couriercenter\Library\CCMailContent::returnEmail($event, $row, $order, $svc->settings()->instructionsFor($row['method']));
-        if (!$m) {
-            return;
-        }
-        $this->ccMail($to, $m['subject'], $m['html'], $m['text']);
     }
 
-    /** The Pickup fields of the form (customer form and the admin «Νέα επιστροφή»). */
+    /** «Η παραγγελία ολοκληρώθηκε» to the customer of an order that was completed because its shipment was delivered. */
+    protected function ccSendCompletedMail($order_id) {
+        $m = $this->ccService()->completedEmail((int)$order_id);
+        if ($m) {
+            $this->ccMail($m['to'], $m['subject'], $m['html'], $m['text']);
+        }
+    }
+
+    /** Tracker of the shop's vouchers that emails the customer when a delivered order is completed. */
+    protected function ccTracker() {
+        $svc = $this->ccService();
+        return $svc->tracker(function ($order_id) {
+            $this->ccSendCompletedMail((int)$order_id);
+        });
+    }
+
+    /**
+     * "Cron without a cron job" (the WP-Cron of the WooCommerce plugin): when the status tracker has not run for
+     * ~2 hours, fire one short non-blocking request to the cron URL. Cheap: it reads the settings OpenCart has
+     * already loaded; nothing is queried and nothing is awaited. Never throws.
+     */
+    protected function ccPseudoCronTick() {
+        try {
+            if ($this->ccState()->devOverrides() && !empty($this->ccState()->devOverrides()['no_pseudo_cron'])) {
+                return;
+            }
+            $last = (int)$this->config->get('shipping_courier_center_cron_last_run_ts');
+            $fired = (int)$this->config->get('shipping_courier_center_cron_fired_at');
+            $enabled = trim((string)$this->config->get('shipping_courier_center_pseudo_cron')) !== '0';
+            if (!\Opencart\Extension\Couriercenter\Library\CCPseudoCron::due(time(), $last, $fired, $enabled)) {
+                return;
+            }
+            $state = $this->ccState();
+            $state->set('cron_fired_at', (string)time());
+            \Opencart\Extension\Couriercenter\Library\CCPseudoCron::fire($this->ccCronUrl($state->ensureCronKey()));
+        } catch (\Throwable $e) {
+            // the status updates are a convenience: a failure here must never break a page
+        }
+    }
+
+    /** The storefront URL of the cron endpoint (secret key). */
+    protected function ccCronUrl($key) {
+        if (defined('HTTP_CATALOG')) { // admin
+            $base = (defined('HTTPS_CATALOG') && HTTPS_CATALOG) ? HTTPS_CATALOG : HTTP_CATALOG;
+        } else {
+            $base = $this->config->get('config_secure') ? $this->config->get('config_ssl') : $this->config->get('config_url');
+        }
+        return rtrim((string)$base, '/') . '/index.php?route=extension/shipping/courier_center/cron&key=' . $key;
+    }
+
+    /** Send with the shop's mail settings; failures go to the log, never into the page. */
+    protected function ccMail($to, $subject, $html, $text) {
+        CCErrorGuard::start($this->ccLogger());
+        try {
+            if (!CCMailer::send($this->config, $to, $subject, $html, $text, $error)) {
+                $this->log->write('Courier Center mail: ' . $error);
+            }
+        } finally {
+            CCErrorGuard::stop();
+        }
+    }
+
+    /** The Pickup fields of the return forms (customer form and the admin «Νέα επιστροφή»). */
     protected function ccPickupView(array $posted, array $defaults): array {
         $dates = \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_dates(\Opencart\Extension\Couriercenter\Library\CCReturnsRules::now_local());
         $date = (string)($posted['pickup_date'] ?? '');
@@ -114,32 +158,6 @@ trait CCControllerTrait {
         $state = $this->ccState();
         if ($url !== '' && $state->get('admin_url', '') !== $url) {
             $state->set('admin_url', $url);
-        }
-    }
-
-    /** Send with the shop's mail settings; failures go to the log, never into the page. */
-    protected function ccMail($to, $subject, $html, $text) {
-        CCErrorGuard::start($this->ccLogger());
-        try {
-            $engine = (string)$this->config->get('config_mail_engine');
-            $mail = new \Mail($engine !== '' ? $engine : 'mail');
-            $mail->parameter = $this->config->get('config_mail_parameter');
-            $mail->smtp_hostname = $this->config->get('config_mail_smtp_hostname');
-            $mail->smtp_username = $this->config->get('config_mail_smtp_username');
-            $mail->smtp_password = html_entity_decode((string)$this->config->get('config_mail_smtp_password'), ENT_QUOTES, 'UTF-8');
-            $mail->smtp_port = $this->config->get('config_mail_smtp_port');
-            $mail->smtp_timeout = $this->config->get('config_mail_smtp_timeout');
-            $mail->setTo($to);
-            $mail->setFrom($this->config->get('config_email'));
-            $mail->setSender(html_entity_decode((string)$this->config->get('config_name'), ENT_QUOTES, 'UTF-8'));
-            $mail->setSubject($subject);
-            $mail->setHtml($html);
-            $mail->setText($text);
-            $mail->send();
-        } catch (\Throwable $e) {
-            $this->log->write('Courier Center mail: ' . $e->getMessage());
-        } finally {
-            CCErrorGuard::stop();
         }
     }
 

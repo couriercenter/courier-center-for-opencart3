@@ -106,7 +106,10 @@ try {
     }
     $rep = js($admin->post($a('extension/couriercenter/shipping/courier_center.repair'), array()));
     c_ok(!empty($rep['success']), 'repair: ' . implode(' · ', isset($rep['done']) ? $rep['done'] : array()));
-    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 13 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '13 events, no separate tracking email');
+    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 15 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '15 events, no separate tracking email');
+    foreach (array('street_number_field', 'auto_complete_notify', 'pseudo_cron', 'returns_email_created') as $name) {
+        c_ok(strpos($sp2, 'name="shipping_courier_center_' . $name . '"') !== false, "settings page has $name");
+    }
 
     echo "== orders (copies of order #11)\n";
     $src = q1("SELECT * FROM `{$P}order` WHERE `order_id` = 11");
@@ -228,14 +231,18 @@ try {
     c_ok(cc_mail_with(array('Νέο αίτημα επιστροφής', 'Παραλαβή:')), 'shop got the «Νέο αίτημα επιστροφής» email');
     $dash = $admin->get($a('common/dashboard'))['body'];
     c_ok(strpos($dash, 'id="cc-returns-notice"') !== false, 'dashboard notice about the waiting requests');
-    c_ok(preg_match('/Επιστροφές Courier Center \((\d+)\)/u', $dash, $mc) === 1 && (int)$mc[1] >= 2, 'menu counter (' . (isset($mc[1]) ? $mc[1] : '-') . ')');
+    c_ok(preg_match('/Courier Center \((\d+)\)/u', $dash, $mc) === 1 && (int)$mc[1] >= 2, 'menu counter (' . (isset($mc[1]) ? $mc[1] : '-') . ')');
     $ol = $admin->get($a('sale/order'))['body'];
     c_ok(strpos($ol, 'id="cc-returns-notice"') !== false && preg_match('/var RETURNS = (\{.*?\});/', $ol, $rm) === 1 && strpos($rm[1], '"' . $o3 . '"') !== false, 'orders page: notice + «Επιστροφή» column');
 
     $rp = $admin->get($a('extension/couriercenter/shipping/courier_center_returns'))['body'];
     c_ok($rq && strpos($rp, 'data-id="' . $rq['id'] . '"') !== false && strpos($rp, 'Παραλαβή: ') !== false, 'admin returns page lists them (with the pickup date)');
     $menu = $admin->get($a('common/dashboard'))['body'];
-    c_ok(strpos($menu, 'Επιστροφές Courier Center') !== false, 'Sales menu entry');
+    foreach (array('Manifest Παραλαβής', 'Οδηγίες', 'Αναφορά Προβλήματος') as $item) {
+        c_ok(strpos($menu, $item) !== false, "Courier Center submenu: $item");
+    }
+    $ordlist = $cust->get($base . 'index.php?' . http_build_query(array('route' => 'account/order', 'language' => 'en-gb', 'customer_token' => $ctok)))['body'];
+    c_ok(strpos($ordlist, 'cc-return-btn') !== false, 'customer orders list: «Αίτημα Επιστροφής» button');
     $ret_awb = '';
     if ($rq) {
         $ap2 = js($admin->post($a('extension/couriercenter/shipping/courier_center_returns.approve'), array('id' => $rq['id'])));
@@ -280,6 +287,67 @@ try {
             c_ok(false, '«Νέα επιστροφή» page did not render');
         }
     }
+
+    echo "== round 3\n";
+    $olist = $admin->get($a('sale/order'))['body'];
+    c_ok(strpos($olist, 'Εκτύπωση BOX NOW') !== false && strpos($olist, "badge('Νέα'") !== false, 'order list: «Εκτύπωση BOX NOW» button + «Νέα» badge');
+    // BOX NOW removal note
+    $bn = $mk(array());
+    q("UPDATE `{$P}order` SET `custom_field` = '" . $m->real_escape_string(json_encode(array('cc_delivery_mode' => 'auto'))) . "' WHERE `order_id` = $bn");
+    $rm = js($admin->post($a('extension/couriercenter/shipping/courier_center.removeBoxNow'), array('order_id' => $bn)));
+    c_ok(!empty($rm['success']) && q1("SELECT 1 AS x FROM `{$P}order_history` WHERE `order_id` = $bn AND `comment` LIKE '%BOX NOW αφαιρέθηκε%'"), 'BOX NOW removal: success + order note');
+    // Street number from a custom field → voucher address
+    q("INSERT INTO `{$P}custom_field` SET `type` = 'text', `value` = '', `validation` = '', `location` = 'address', `status` = 1, `sort_order` = 0");
+    $cfid = (int)$m->insert_id;
+    q("INSERT INTO `{$P}custom_field_description` SET `custom_field_id` = $cfid, `language_id` = 1, `name` = 'Αριθμός smoke'");
+    $spg = $admin->get($a('extension/couriercenter/shipping/courier_center'))['body'];
+    c_ok(strpos($spg, 'Αριθμός smoke') !== false, 'the address custom field is offered as the number field');
+    q("DELETE FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_street_number_field'");
+    q("INSERT INTO `{$P}setting` SET `store_id` = 0, `code` = 'shipping_courier_center', `key` = 'shipping_courier_center_street_number_field', `value` = '$cfid', `serialized` = 0");
+    $on = $mk(array());
+    q("UPDATE `{$P}order` SET `shipping_custom_field` = '" . $m->real_escape_string(json_encode(array((string)$cfid => '77'))) . "' WHERE `order_id` = $on");
+    $pp2 = $admin->get($a('sale/order.info', array('order_id' => $on)))['body'];
+    c_ok(preg_match('/ 77,/', $pp2) === 1, 'the panel previews the address WITH the number');
+    $vn = js($admin->post($a('extension/couriercenter/shipping/courier_center.createVoucher'), array('order_id' => $on)));
+    c_ok(!empty($vn['success']), 'voucher with the number: ' . (isset($vn['error']) ? $vn['error'] : $vn['voucher']));
+    if (!empty($vn['voucher'])) {
+        $created_awbs[] = $vn['voucher'];
+        $dn = $api->get_shipment_details($vn['voucher']);
+        c_ok(strpos((string)($dn['ShipmentDetails'][0]['ShipmentInfo']['Consignee']['Address'] ?? ''), '77') !== false, 'the API consignee address carries the number');
+    }
+    q("DELETE FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_street_number_field'");
+    q("DELETE FROM `{$P}custom_field_description` WHERE `custom_field_id` = $cfid");
+    q("DELETE FROM `{$P}custom_field` WHERE `custom_field_id` = $cfid");
+    // Pseudo-cron: due → the storefront visit fires one request which runs the tracker
+    $devrow = q1("SELECT `value` FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_dev_overrides'");
+    q("DELETE FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_dev_overrides'");
+    $stset = function ($k, $v) use ($P, $m) {
+        q("DELETE FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_$k'");
+        q("INSERT INTO `{$P}setting` SET `store_id` = 0, `code` = 'courier_center_state', `key` = 'shipping_courier_center_$k', `value` = '" . $m->real_escape_string((string)$v) . "', `serialized` = 0");
+    };
+    $stget = function ($k) use ($P) {
+        $r = q1("SELECT `value` FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_$k'");
+        return $r ? (int)$r['value'] : 0;
+    };
+    // (the shop's own URL points at port 80, taken by another server: for this check the storefront config points at the test server)
+    $rootcfg = 'C:/xampp/htdocs/opencart4/config.php';
+    $rootcfg_orig = file_get_contents($rootcfg);
+    file_put_contents($rootcfg, str_replace('http://localhost/opencart4/', $base, $rootcfg_orig));
+    $old = time() - 20000;
+    $stset('cron_last_run_ts', $old);
+    $stset('cron_fired_at', 0);
+    $stset('pseudo_cron', 1);
+    (new SmokeHttp(cc_state_dir() . '/oc4-visit.cookies'))->get($base . 'index.php?route=common/home&language=en-gb');
+    c_ok($stget('cron_fired_at') > 0, 'pseudo-cron: the visit fired the cron request');
+    $ran = false;
+    for ($i = 0; $i < 80 && !$ran; $i++) {
+        usleep(500000);
+        $ran = $stget('cron_last_run_ts') > $old + 100;
+    }
+    c_ok($ran, 'the fired request ran the tracker (cron_last_run_ts updated)');
+    file_put_contents($rootcfg, $rootcfg_orig);
+    q("DELETE FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_pseudo_cron'");
+    $stset('dev_overrides', $devrow ? $devrow['value'] : json_encode(array('no_pseudo_cron' => true)));
 
     echo "== cron\n";
     $key = q1("SELECT `value` FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_cron_key'");

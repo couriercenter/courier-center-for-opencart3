@@ -74,7 +74,7 @@ function test_lib_builder_main_account_payload_is_unchanged() {
     $p = cc_builder()->build_payload();
     assert_same('100-1', $p['Requestor']['CarrierBillingAccount']);
     assert_same('100-1', $p['Shipper']['CarrierBillingAccount']);
-    assert_same('Order #55', $p['comments'], 'no customer note → old comment');
+    assert_same('', $p['comments'], 'no customer note → empty comments (order number is in Reference1), as in WooCommerce');
 }
 function test_lib_builder_customer_note_goes_to_comments() {
     $p = cc_builder(array('comment' => "Κουδούνι &amp; 2ος\n\n  όροφος " . str_repeat('α', 300)))->build_payload();

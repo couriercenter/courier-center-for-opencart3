@@ -40,7 +40,7 @@ function test_oc3_schema_adds_only_missing_columns() {
 }
 function test_oc3_schema_events_match_the_spec() {
     $events = CCSchema::events();
-    assert_count(14, $events);
+    assert_count(16, $events);
     assert_same(array('admin/view/sale/order_info/before', 'extension/shipping/courier_center/order/orderTab', 0), $events['courier_center_order_panel']);
     assert_same(array('catalog/model/checkout/order/addOrderHistory/after', 'extension/shipping/courier_center/autocreate/autoCreate', 50), $events['courier_center_auto_create']);
     assert_same(array('catalog/view/mail/order_add/after', 'extension/shipping/courier_center/email/orderAdd', 0), $events['courier_center_mail_add']);
@@ -62,7 +62,7 @@ function test_oc3_schema_reregisters_only_our_events() {
     assert_contains("'courier_center_order_panel'", $del[0]);
     assert_not_contains('%', $del[0]);
     $ins = $db->matching('/INSERT INTO `oc_event`/');
-    assert_count(14, $ins);
+    assert_count(16, $ins);
     assert_contains("'courier_center_email'", $del[0], 'the 1.0.0 email event is removed on repair');
     assert_contains("`status` = '1'", $ins[0]);
     CCSchema::removeEvents($db, 'oc_');

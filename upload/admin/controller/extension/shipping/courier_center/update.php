@@ -111,7 +111,9 @@ class ControllerExtensionShippingCourierCenterUpdate extends Controller {
                 return;
             }
             $this->ccBoot();
-            $this->ccPseudoCronTick();
+            if (method_exists($this, 'ccPseudoCronTick')) { // (files are swapped one by one during an update)
+                $this->ccPseudoCronTick();
+            }
             if (!$this->user->hasPermission('access', 'extension/shipping/courier_center')) {
                 return;
             }

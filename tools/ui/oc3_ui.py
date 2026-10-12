@@ -118,6 +118,15 @@ def main():
         check(len(opened) == 2 and 'bulkPrint&' in opened[0] and o_norm in opened[0] and 'bulkPrintBoxnow' in opened[1] and o_bn in opened[1], 'print: normal PDF first, BOX NOW PDF from the note')
         pdf = page.evaluate("async (u) => { const r = await fetch(u, {credentials: 'same-origin'}); const b = await r.text(); return b.slice(0, 4); }", opened[1] if len(opened) > 1 else A('x'))
         check(pdf == '%PDF', 'the BOX NOW PDF downloads')
+        page.uncheck('input[name="selected[]"][value="%s"]' % o_bn)
+        n_dialogs = len(dialogs)
+        page.click('#cc-bulk-bar button:has-text("Εκτύπωση BOX NOW")')
+        check(len(dialogs) > n_dialogs and 'BOX NOW voucher' in dialogs[-1], 'BOX NOW-only print with no BOX NOW order selected → alert')
+        page.check('input[name="selected[]"][value="%s"]' % o_bn)
+        page.evaluate("() => { window.__opened = []; }")
+        page.click('#cc-bulk-bar button:has-text("Εκτύπωση BOX NOW")')
+        opened_bn = page.evaluate("() => window.__opened") or []
+        check(len(opened_bn) == 1 and 'bulkPrintBoxnow' in opened_bn[0] and o_bn in opened_bn[0] and o_norm not in opened_bn[0], 'BOX NOW-only print opens just the BOX NOW PDF')
 
         print('== customer return form JS')
         for k, v in (('enabled', '1'), ('require_approval', '1'), ('method_dropoff', '1'), ('method_boxnow', '1'), ('method_pickup', '1')):
@@ -143,6 +152,9 @@ def main():
         cpage.goto(BASE + 'index.php?route=account/order/info&order_id=' + o_norm)
         print('    order page:', cpage.url, cpage.locator('#cc-returns').count())
         check(cpage.locator('#cc-returns a:has-text("Αίτημα επιστροφής")').count() == 1, 'order page shows the button')
+        cpage.goto(BASE + 'index.php?route=account/order')
+        check(cpage.locator('a.cc-return-btn').count() >= 1, 'customer orders list shows «Αίτημα Επιστροφής»')
+        cpage.goto(BASE + 'index.php?route=account/order/info&order_id=' + o_norm)
         cpage.click('#cc-returns a:has-text("Αίτημα επιστροφής")')
         cpage.wait_for_load_state('load')
         check(not cpage.locator('#cc-sizes').is_visible(), 'Drop Off by default: no locker sizes')

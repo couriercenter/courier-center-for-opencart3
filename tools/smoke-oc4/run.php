@@ -80,7 +80,8 @@ try {
         array('code' => '100-0120-0001', 'label' => 'Κηφισός', 'bill_to' => 'main'),
         array('code' => '100-0120-0001', 'label' => 'dup'),
     );
-    foreach (array('returns_enabled' => '1', 'returns_require_approval' => '1', 'returns_method_dropoff' => '1', 'returns_method_boxnow' => '1', 'returns_window_days' => '14', 'returns_weight' => '1') as $k => $v) {
+    foreach (array('returns_enabled' => '1', 'returns_require_approval' => '1', 'returns_method_dropoff' => '1', 'returns_method_boxnow' => '1', 'returns_method_pickup' => '1',
+        'returns_window_days' => '14', 'returns_weight' => '1', 'returns_admin_notify' => '1', 'returns_admin_emails' => 'shop-returns-oc4@example.com') as $k => $v) {
         $fields['shipping_courier_center_' . $k] = $v;
     }
     $save = $admin->post($a('extension/couriercenter/shipping/courier_center'), $fields);
@@ -105,7 +106,7 @@ try {
     }
     $rep = js($admin->post($a('extension/couriercenter/shipping/courier_center.repair'), array()));
     c_ok(!empty($rep['success']), 'repair: ' . implode(' · ', isset($rep['done']) ? $rep['done'] : array()));
-    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 10 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '10 events, no separate tracking email');
+    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 13 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '13 events, no separate tracking email');
 
     echo "== orders (copies of order #11)\n";
     $src = q1("SELECT * FROM `{$P}order` WHERE `order_id` = 11");
@@ -118,7 +119,7 @@ try {
         }
         q("INSERT INTO `{$P}order` SET " . implode(', ', $set) . ", `date_added` = NOW(), `date_modified` = NOW()");
         $id = (int)$GLOBALS['m']->insert_id;
-        q("INSERT INTO `{$P}order_product` (`order_id`, `product_id`, `master_id`, `name`, `model`, `quantity`, `price`, `total`, `tax`, `reward`) SELECT $id, `product_id`, `master_id`, `name`, `model`, 2, `price`, `total`, `tax`, `reward` FROM `{$P}order_product` WHERE `order_id` = 11");
+        q("INSERT INTO `{$P}order_product` (`order_id`, `product_id`, `master_id`, `name`, `model`, `quantity`, `price`, `total`, `tax`, `reward`) SELECT $id, `product_id`, `master_id`, `name`, `model`, 3, `price`, `total`, `tax`, `reward` FROM `{$P}order_product` WHERE `order_id` = 11");
         q("INSERT INTO `{$P}order_history` SET `order_id` = $id, `order_status_id` = '" . (int)$row['order_status_id'] . "', `notify` = 0, `comment` = 'cc smoke copy', `date_added` = NOW()");
         $clones[] = $id;
         return $id;
@@ -208,8 +209,31 @@ try {
     c_ok($s1['status'] === 302 && $s2['status'] === 302 && $rq && $rq['status'] === 'pending_approval' && count(q("SELECT id FROM `{$P}cc_return_requests` WHERE `order_id` = $o3")) === 1, 'BOX NOW return requested (double submit → one)');
     $nologin = (new SmokeHttp(cc_state_dir() . '/oc4-anon.cookies'))->get($form_url);
     c_ok($nologin['status'] === 302 && strpos($nologin['location'], 'account/login') !== false, 'guest → login page');
+    // Pickup request (date from the next working day, 4-hour window)
+    require_once cc_repo_root() . '/upload/system/library/couriercenter/CCReturnsRules.php';
+    $dates = \Opencart\Extension\Couriercenter\Library\CCReturnsRules::pickup_dates(\Opencart\Extension\Couriercenter\Library\CCReturnsRules::now_local());
+    $form = $cust->get($form_url)['body'];
+    c_ok(strpos($form, 'id="cc-pickup"') !== false && strpos($form, 'value="' . $dates[0] . '"') !== false, 'the form offers Pickup');
+    preg_match('/name="request_uid" value="([^"]+)"/', $form, $u2);
+    preg_match_all('/name="qty\[(\d+)\]"/', $form, $qall);
+    $pk_item = isset($qall[1][0]) ? $qall[1][0] : 0;
+    $pfields = array('request_uid' => isset($u2[1]) ? $u2[1] : '', 'method' => 'COURIER_CENTER_PICKUP', 'name' => 'Ρένα OC4', 'mobile' => '6912345678',
+        'pickup_address' => 'Ακαδημίας 10', 'pickup_city' => 'ΑΘΗΝΑ', 'pickup_postcode' => '10679', 'pickup_date' => $dates[1], 'pickup_time_from' => '09:00', 'pickup_time_to' => '13:00',
+        'courier_notes' => 'smoke oc4', 'qty[' . $pk_item . ']' => '1');
+    $bad = $cust->post($form_url, array_merge($pfields, array('pickup_time_to' => '11:00')));
+    c_ok($bad['status'] === 200 && strpos($bad['body'], 'τουλάχιστον 4 ώρες') !== false, 'Pickup window under 4 hours refused');
+    $sp1 = $cust->post($form_url, $pfields);
+    $prq = q1("SELECT * FROM `{$P}cc_return_requests` WHERE `order_id` = $o3 AND `method` = 'COURIER_CENTER_PICKUP'");
+    c_ok($sp1['status'] === 302 && $prq && $prq['pickup_date'] === $dates[1] && $prq['pickup_time_to'] === '13:00', 'Pickup return requested');
+    c_ok(cc_mail_with(array('Νέο αίτημα επιστροφής', 'Παραλαβή:')), 'shop got the «Νέο αίτημα επιστροφής» email');
+    $dash = $admin->get($a('common/dashboard'))['body'];
+    c_ok(strpos($dash, 'id="cc-returns-notice"') !== false, 'dashboard notice about the waiting requests');
+    c_ok(preg_match('/Επιστροφές Courier Center \((\d+)\)/u', $dash, $mc) === 1 && (int)$mc[1] >= 2, 'menu counter (' . (isset($mc[1]) ? $mc[1] : '-') . ')');
+    $ol = $admin->get($a('sale/order'))['body'];
+    c_ok(strpos($ol, 'id="cc-returns-notice"') !== false && preg_match('/var RETURNS = (\{.*?\});/', $ol, $rm) === 1 && strpos($rm[1], '"' . $o3 . '"') !== false, 'orders page: notice + «Επιστροφή» column');
+
     $rp = $admin->get($a('extension/couriercenter/shipping/courier_center_returns'))['body'];
-    c_ok($rq && strpos($rp, 'data-id="' . $rq['id'] . '"') !== false, 'admin returns page lists it');
+    c_ok($rq && strpos($rp, 'data-id="' . $rq['id'] . '"') !== false && strpos($rp, 'Παραλαβή: ') !== false, 'admin returns page lists them (with the pickup date)');
     $menu = $admin->get($a('common/dashboard'))['body'];
     c_ok(strpos($menu, 'Επιστροφές Courier Center') !== false, 'Sales menu entry');
     $ret_awb = '';
@@ -223,8 +247,38 @@ try {
         $info2 = $cust->get($base . 'index.php?' . http_build_query(array('route' => 'account/order.info', 'language' => 'en-gb', 'customer_token' => $ctok, 'order_id' => $o3)))['body'];
         c_ok(strpos($info2, 'Κωδικός BOX NOW επιστροφής') !== false, 'customer sees the BOX NOW code');
         c_ok(cc_mail_with(array('το αίτημα ελήφθη')) && cc_mail_with(array('δημιουργήθηκε η αποστολή')), 'returns emails («ελήφθη», «δημιουργήθηκε») sent');
+        if ($prq) {
+            $ap3 = js($admin->post($a('extension/couriercenter/shipping/courier_center_returns.approve'), array('id' => $prq['id'])));
+            $prq2 = q1("SELECT * FROM `{$P}cc_return_requests` WHERE `id` = " . (int)$prq['id']);
+            c_ok(!empty($ap3['success']) && $prq2['status'] === 'shipment_created', 'Pickup approved → ' . ($prq2 ? $prq2['return_awb'] : '') . (empty($ap3['error']) ? '' : ' / ' . $ap3['error']));
+            if ($prq2 && $prq2['return_awb'] !== '') {
+                $created_awbs[] = $prq2['return_awb'];
+                $pd = $api->get_shipment_details($prq2['return_awb']);
+                $pi = isset($pd['ShipmentDetails'][0]['ShipmentInfo']) ? $pd['ShipmentDetails'][0]['ShipmentInfo'] : array();
+                c_ok(isset($pi['Shipper']['ZipCode']) && trim((string)$pi['Shipper']['ZipCode']) === '10679', 'Pickup shipper = customer address on the API');
+            }
+        }
         $pp = $admin->get($a('sale/order.info', array('order_id' => $o3)))['body'];
-        c_ok(strpos($pp, 'Επιστροφές πελάτη') !== false, 'order panel lists the return');
+        c_ok(strpos($pp, '↩️ Επιστροφές') !== false && strpos($pp, 'id="cc-add-return"') !== false && strpos($pp, 'Παραλαβή: <strong>') !== false, 'order panel lists the returns + «Νέα επιστροφή»');
+        // «Νέα επιστροφή» of the shop (Drop Off, no customer email)
+        $np = $admin->get($a('extension/couriercenter/shipping/courier_center_returns.add', array('order_id' => $o3)))['body'];
+        if (preg_match('/name="request_uid" value="([^"]+)"/', $np, $su) && preg_match_all('/name="qty\[(\d+)\]"/', $np, $sq)) {
+            cc_mailpit_clear();
+            $post = array('request_uid' => $su[1], 'method' => 'COURIER_CENTER_DROPOFF', 'name' => 'Ρένα OC4', 'mobile' => '6912345678', 'reason' => 'smoke shop');
+            $post['qty[' . end($sq[1]) . ']'] = '1';
+            $res = $admin->post($a('extension/couriercenter/shipping/courier_center_returns.add', array('order_id' => $o3)), $post);
+            $srow = q1("SELECT * FROM `{$P}cc_return_requests` WHERE `request_uid` = '" . $m->real_escape_string($su[1]) . "'");
+            c_ok($res['status'] === 302 && $srow && $srow['origin'] === 'shop' && $srow['status'] === 'shipment_created' && (int)$srow['notify_customer'] === 0,
+                'shop return created at once: ' . ($srow ? $srow['return_awb'] . ' ' . $srow['last_error'] : 'no row' . (preg_match('/id="cc-add-error">(.*?)<\/div>/s', $res['body'], $er) ? ' — ' . trim(strip_tags($er[1])) : ' (HTTP ' . $res['status'] . ')')));
+            if ($srow && $srow['return_awb'] !== '') {
+                $created_awbs[] = $srow['return_awb'];
+            }
+            $after = $admin->get($a('sale/order.info', array('order_id' => $o3)))['body'];
+            c_ok(strpos($after, 'id="cc-return-notice"') !== false && strpos($after, 'Από: Κατάστημα') !== false, 'order panel: success notice + «Από: Κατάστημα»');
+            c_ok(!cc_mail_with(array('δημιουργήθηκε η αποστολή')), 'no customer email without «Αποστολή email στον πελάτη»');
+        } else {
+            c_ok(false, '«Νέα επιστροφή» page did not render');
+        }
     }
 
     echo "== cron\n";

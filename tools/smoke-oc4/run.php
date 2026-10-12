@@ -365,6 +365,9 @@ try {
 } catch (Throwable $e) {
     c_ok(false, get_class($e) . ': ' . $e->getMessage());
 } finally {
+    if (isset($rootcfg, $rootcfg_orig)) {
+        file_put_contents($rootcfg, $rootcfg_orig); // never leave the storefront config pointing at the test server
+    }
     echo "== cleanup\n";
     foreach ($created_awbs as $awb) {
         $res = $api->void_shipment($awb);

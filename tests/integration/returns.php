@@ -162,7 +162,7 @@ check($s1['ok'] && $s1['id'] > 0, 'drop off request submitted');
 $again = $rs->submit($order, 3, array('request_uid' => 'uid-000001', 'method' => R::METHOD_DROPOFF, 'items' => array($ids[0] => '1'), 'name' => 'Μαρία', 'mobile' => '6912345678'));
 check($again['ok'] && $again['id'] === $s1['id'], 'same uid → same request');
 check($rs->availableItems($order)[$ids[0]]['available'] === 1, '2 of 3 reserved');
-check($events === array('received:' . $s1['id']), 'received notification');
+check($events === array('received:' . $s1['id'], 'submitted:' . $s1['id']), 'received (customer) + submitted (shop) notifications');
 $row = $rs->repo()->get($s1['id']);
 check($row['status'] === R::ST_PENDING && $row['original_shipper_code'] === '100-0120-0001' && $row['original_awb'] === 'AWB10', 'pending row with original AWB + point');
 
@@ -215,13 +215,93 @@ $api = new FakeApi(array('get_shipment_details' => $details('100-0120-0004'), 'c
 $events = array();
 $rs = $mk();
 $s4 = $rs->submit($order, 3, array('request_uid' => 'uid-000004', 'method' => R::METHOD_DROPOFF, 'items' => array($ids[1] => '1'), 'name' => 'Μαρία', 'mobile' => '6912345678'));
-check($rs->repo()->get($s4['id'])['status'] === R::ST_CREATED && $events === array('created:' . $s4['id']), 'no approval: created at once, only the created email');
+check($rs->repo()->get($s4['id'])['status'] === R::ST_CREATED && $events === array('created:' . $s4['id'], 'submitted:' . $s4['id']), 'no approval: created at once, only the created email (+ shop email)');
 $api->responses['get_shipment_details'] = array('Result' => 'Success', 'ShipmentDetails' => array(array('ShipmentInfo' => array('ShipmentAwb' => 'RET4', 'ShipmentStatus' => '15', 'ShipmentStatusDesc' => 'X', 'CollectionStatus' => '10', 'Reference3' => 'άσκοπη'))));
 $t = (new CCReturnsTracker($rs))->refresh($s4['id']);
 check($t['ok'] && $t['row']['display_status'] === R::ASKOPI_STATUS, 'tracking applies ΑΣΚΟΠΗ ΠΡΟΣΕΛΕΥΣΗ');
 check(strpos(implode("\n", $logs), 'secret') === false, 'credentials never logged');
 $hist = $db->query("SELECT `comment` FROM `{$P}order_history` WHERE `order_id` = 10 ORDER BY `order_history_id`")->rows;
 check(strpos(implode("\n", array_column($hist, 'comment')), '↩️ Επιστροφή #' . $s1['id'] . ': AWB RET1') !== false, 'order history notes');
+
+echo "Returns: Pickup\n";
+$config->set('shipping_courier_center_returns_require_approval', '1');
+$config->set('shipping_courier_center_returns_method_pickup', '1');
+$db->query("INSERT INTO `{$P}order_product` SET `order_id` = 10, `product_id` = 2, `name` = 'Κάλτσες', `model` = 'K1', `quantity` = 5");
+$order = $db->query("SELECT * FROM `{$P}order` WHERE `order_id` = 10")->row;
+$ids = array_keys($rs->availableItems($order));
+$dates = R::pickup_dates(R::now_local());
+$api = new FakeApi(array('get_shipment_details' => $details('100-0120-0001'), 'create_shipment' => array('Result' => 'Success', 'ShipmentNumber' => 'RET5')));
+$events = array();
+$rs = $mk();
+$pk = array('request_uid' => 'uid-000005', 'method' => R::METHOD_PICKUP, 'items' => array($ids[2] => '2'), 'name' => 'Μαρία', 'mobile' => '6912345678',
+    'pickup_address' => 'Ακαδημίας 10', 'pickup_city' => 'Αθήνα', 'pickup_postcode' => '106 79', 'pickup_date' => $dates[1], 'pickup_time_from' => '10:00', 'pickup_time_to' => '14:00',
+    'courier_notes' => 'Κουδούνι <b>Κ</b>');
+check($rs->submit($order, 3, array_merge($pk, array('pickup_date' => '2020-01-01')))['code'] === 'pickup_date', 'past pickup date refused');
+check($rs->submit($order, 3, array_merge($pk, array('pickup_time_to' => '12:00')))['code'] === 'pickup_window', 'window under 4 hours refused');
+check($rs->submit($order, 3, array_merge($pk, array('pickup_postcode' => '123')))['code'] === 'invalid_postcode', 'bad postcode refused');
+$s5 = $rs->submit($order, 3, $pk);
+$row = $rs->repo()->get($s5['id']);
+check($s5['ok'] && $row['pickup_date'] === $dates[1] && $row['pickup_time_from'] === '10:00' && $row['shipper_details']['postcode'] === '10679'
+    && $row['shipper_details']['courier_notes'] === 'Κουδούνι Κ', 'pickup request stored (address, date, window, notes)');
+// Late approval: the stored date has passed → the next working day
+$db->query("UPDATE `{$P}cc_return_requests` SET `pickup_date` = '2020-01-06' WHERE `id` = " . (int)$s5['id']);
+$a = $rs->approve($s5['id'], 1);
+$sent = $api->calls[1][1][0];
+check($a['ok'] && $a['row']['pickup_date'] === R::next_working_day(R::now_local()) && $sent['ShipmentDate'] === $a['row']['pickup_date'], 'late approval: pickup date moved to the next working day');
+check($sent['CollectionInstructions'] === array('TimeFrom' => '10:00', 'TimeTo' => '14:00', 'Comments' => 'Κουδούνι Κ') && $sent['Shipper']['ZipCode'] === '10679', 'pickup payload');
+check($sent['BillTo'] === 'Requestor', 'point billed to the main code → Requestor');
+$cfgPoints = $config->get('shipping_courier_center_pickup_points');
+$cfgPoints[0]['bill_to'] = 'self';
+$config->set('shipping_courier_center_pickup_points', $cfgPoints);
+$s6 = $rs->submit($order, 3, array_merge($pk, array('request_uid' => 'uid-000006', 'items' => array($ids[2] => '1'))));
+$api = new FakeApi(array('get_shipment_details' => $details('100-0120-0001'), 'create_shipment' => array('Result' => 'Success', 'ShipmentNumber' => 'RET6')));
+$rs = $mk();
+$rs->approve($s6['id'], 1);
+check($api->calls[1][1][0]['BillTo'] === 'Consignee', 'sub-code billed to itself → Consignee');
+$cfgPoints[0]['bill_to'] = 'main';
+$config->set('shipping_courier_center_pickup_points', $cfgPoints);
+
+echo "Returns: shop-created\n";
+$db->query("INSERT INTO `{$P}order` SET `order_id` = 11, `customer_id` = 0, `order_status_id` = 2, `firstname` = 'Γιώργος', `lastname` = 'Π', `email` = 'g@x.gr', `telephone` = '2101234567', `shipping_firstname` = 'Γιώργος', `shipping_lastname` = 'Π',
+    `shipping_address_1` = 'Πατησίων 1', `shipping_city` = 'ΑΘΗΝΑ', `shipping_postcode` = '10431', `comment` = '', `date_added` = NOW(), `date_modified` = NOW()");
+$db->query("INSERT INTO `{$P}order_product` SET `order_id` = 11, `product_id` = 1, `name` = 'Μπλούζα', `model` = 'B1', `quantity` = 1");
+$order11 = $db->query("SELECT * FROM `{$P}order` WHERE `order_id` = 11")->row;
+$i11 = array_keys($rs->availableItems($order11));
+$sc = array('request_uid' => 'shop-000001', 'method' => R::METHOD_BOXNOW, 'items' => array($i11[0] => '1'), 'name' => 'Γιώργος', 'mobile' => '6987654321', 'locker_size' => 'small', 'notify' => '0');
+check($rs->shopCreate($order11, 1, $sc)['code'] === 'no_shipment', 'shop return needs an active voucher');
+$db->query("INSERT INTO `{$P}cc_shipments` SET `order_id` = 11, `voucher_number` = 'AWB11', `is_voided` = 1, `created_at` = NOW()");
+check($rs->shopCreate($order11, 1, $sc)['code'] === 'no_shipment', 'voided voucher is not enough');
+check(!$rs->hasActiveAwb(11), 'hasActiveAwb false for voided');
+$db->query("UPDATE `{$P}cc_shipments` SET `is_voided` = 0, `pickup_point` = '' WHERE `order_id` = 11");
+$config->set('shipping_courier_center_returns_enabled', '0'); // the shop does not depend on the customer's settings
+$api = new FakeApi(array('get_shipment_details' => array('Result' => 'Success', 'ShipmentDetails' => array(array('ShipmentInfo' => array('ShipmentAwb' => 'AWB11', 'Shipper' => array('Code' => '100-0120-0004'))))),
+    'create_shipment' => array('Result' => 'Success', 'ShipmentNumber' => 'RET7', 'ReturnShipmentNumber' => '9999')));
+$events = array();
+$rs = $mk();
+$c = $rs->shopCreate($order11, 7, $sc);
+$row = $rs->repo()->get($c['id']);
+check($c['ok'] && $row['status'] === R::ST_CREATED && $row['origin'] === 'shop' && $row['notify_customer'] === 0 && $row['decided_by'] === 7, 'shop return created at once (origin shop, no approval, processing order)');
+check($events === array(), 'notify off → no customer email, no shop email');
+$again = $rs->shopCreate($order11, 7, $sc);
+check($again['ok'] && $again['id'] === $c['id'], 'same uid → same shop return');
+$db->query("INSERT INTO `{$P}order_product` SET `order_id` = 11, `product_id` = 2, `name` = 'Παντελόνι', `model` = 'P1', `quantity` = 1");
+$i11 = array_keys($rs->availableItems($order11));
+$api = new FakeApi(array('get_shipment_details' => array('Result' => 'Failure', 'Errors' => array(array('Message' => 'down')))));
+$rs = $mk();
+$c2 = $rs->shopCreate($order11, 7, array_merge($sc, array('request_uid' => 'shop-000002', 'method' => R::METHOD_DROPOFF, 'items' => array($i11[1] => '1'), 'notify' => '1')));
+check($c2['ok'] && $rs->repo()->get($c2['id'])['status'] === R::ST_FAILED, 'shop return kept when the creation fails');
+check($rs->reject($c2['id'], 7)['ok'] && $events === array(), 'rejecting a shop return sends no "rejected" email');
+check($rs->repo()->pendingCount() === 0, 'pendingCount');
+$db->query("UPDATE `{$P}cc_return_requests` SET `status` = '" . R::ST_PENDING . "' WHERE `id` = " . (int)$c2['id']);
+check($rs->repo()->pendingCount() === 1, 'pendingCount counts pending');
+$sum = $rs->repo()->summaryForOrders(array(10, 11, 12));
+check($sum[11]['count'] === 2 && $sum[11]['status'] === R::ST_PENDING && !isset($sum[12]) && $sum[10]['count'] === 6, 'summaryForOrders: newest status + count');
+
+echo "Schema v2 → v3 upgrade\n";
+$db->query("ALTER TABLE `{$P}cc_return_requests` DROP COLUMN `origin`, DROP COLUMN `notify_customer`, DROP COLUMN `pickup_date`, DROP COLUMN `pickup_time_from`, DROP COLUMN `pickup_time_to`");
+$db->query("UPDATE `{$P}setting` SET `value` = '2' WHERE `key` = '" . CCDbSchema::STATE_KEY . "'");
+$up = CCDbSchema::ensureOnce($db, $P);
+check(count($up) === 5 && $db->query("SELECT `origin`, `notify_customer` FROM `{$P}cc_return_requests` WHERE `id` = " . (int)$s1['id'])->row === array('origin' => 'customer', 'notify_customer' => '1'), 'upgrade adds 5 columns, old rows = customer + notify');
 
 $db->query("DROP DATABASE `cc_parity_test`");
 echo "\n$ok ok, $fail failed\n";

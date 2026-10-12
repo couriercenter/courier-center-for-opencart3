@@ -128,3 +128,103 @@ function test_lib_mail_tracking_block_and_return_emails() {
     assert_same('Γεια σας,', explode("\n", CCMailContent::returnEmail('rejected', $row, array('order_id' => 7))['text'])[2]);
     assert_same(array(), CCMailContent::returnEmail('nope', $row, array()));
 }
+function test_lib_returns_pickup_dates_and_window() {
+    $tz = new DateTimeZone('Europe/Athens');
+    // Friday evening → Monday; Saturday → Monday; Monday → Tuesday
+    assert_same('2026-10-19', R::next_working_day(new DateTimeImmutable('2026-10-16 22:30', $tz)));
+    assert_same('2026-10-19', R::next_working_day(new DateTimeImmutable('2026-10-17 09:00', $tz)));
+    assert_same('2026-10-13', R::next_working_day(new DateTimeImmutable('2026-10-12 00:01', $tz)));
+    $dates = R::pickup_dates(new DateTimeImmutable('2026-10-16 10:00', $tz));
+    assert_count(R::PICKUP_DAYS, $dates);
+    assert_same('2026-10-19', $dates[0]);
+    assert_same('2026-10-30', $dates[9], 'ten working days, no weekends');
+    $now = new DateTimeImmutable('2026-10-16 10:00', $tz);
+    assert_same('', R::pickup_date_error('2026-10-20', $now));
+    assert_same(R::MSG_PICKUP_DATE, R::pickup_date_error('2026-10-24', $now), 'Saturday');
+    assert_same(R::MSG_PICKUP_DATE, R::pickup_date_error('2026-10-16', $now), 'today');
+    assert_same('', R::pickup_window_error('', ''));
+    assert_same('', R::pickup_window_error('09:00', '13:00'));
+    assert_same('', R::pickup_window_error('13:00', '17:00'));
+    assert_same(R::MSG_PICKUP_HALF, R::pickup_window_error('09:00', ''));
+    assert_same(R::MSG_PICKUP_WINDOW, R::pickup_window_error('10:00', '13:00'), '3 hours');
+    assert_same(R::MSG_PICKUP_WINDOW, R::pickup_window_error('08:00', '13:00'));
+    assert_same(R::MSG_PICKUP_WINDOW, R::pickup_window_error('14:00', '18:00'));
+    assert_same(R::MSG_PICKUP_WINDOW, R::pickup_window_error('09:30', '13:30'));
+    assert_same(array('09:00', '10:00', '11:00', '12:00', '13:00'), R::pickup_hours_from());
+    assert_same(array('13:00', '14:00', '15:00', '16:00', '17:00'), R::pickup_hours_to());
+    assert_same('Τρίτη 13/10', R::pickup_date_label('2026-10-13'));
+    assert_same('', R::pickup_date_label('2026-02-30'));
+    assert_same('Τρίτη 13/10/2026, 09:00–13:00', R::pickup_text('2026-10-13', '09:00', '13:00'));
+    assert_same('Τρίτη 13/10/2026, οποιαδήποτε ώρα 09:00–17:00', R::pickup_text('2026-10-13', null, null));
+    assert_same('', R::pickup_text(null, '09:00', '13:00'));
+}
+function test_lib_returns_bill_to() {
+    assert_same('Requestor', R::bill_to(null, '100-0120-0004'));
+    assert_same('Requestor', R::bill_to(array('code' => '100-120-0004', 'bill_to' => 'self'), '100-0120-0004'), 'main code');
+    assert_same('Requestor', R::bill_to(array('code' => '100-0120-0001', 'bill_to' => 'main'), '100-0120-0004'));
+    assert_same('Consignee', R::bill_to(array('code' => '100-0120-0001', 'bill_to' => 'self'), '100-0120-0004'));
+}
+function test_lib_returns_pickup_payload() {
+    $req = cc_return_req(array('method' => R::METHOD_PICKUP, 'bill_to' => 'Consignee', 'pickup_date' => '2026-10-20', 'pickup_time_from' => '09:00', 'pickup_time_to' => '13:00',
+        'shipper_details' => array('name' => 'Μαρία Κ.', 'address' => 'Σόλωνος 5', 'city' => 'Αθήνα', 'postcode' => '106 71', 'phone' => '2101234567', 'courier_notes' => "3ος\n όροφος")));
+    $p = CCReturnPayload::build($req, array(), 1.0);
+    assert_same(array('Σόλωνος 5', 'Αθήνα', 'Αθήνα', '10671'), array($p['Shipper']['Address'], $p['Shipper']['City'], $p['Shipper']['Area'], $p['Shipper']['ZipCode']));
+    assert_same('2026-10-20', $p['ShipmentDate']);
+    assert_false(isset($p['shipmentDate']), 'only one date key');
+    assert_same(array('TimeFrom' => '09:00', 'TimeTo' => '13:00', 'Comments' => '3ος όροφος'), $p['CollectionInstructions']);
+    assert_same('Consignee', $p['BillTo']);
+    assert_false(isset($p['LockerPickupInfo']));
+    $req['pickup_time_from'] = null;
+    $req['pickup_time_to'] = null;
+    $p = CCReturnPayload::build($req, array(), 1.0);
+    assert_same(array('09:00', '17:00'), array($p['CollectionInstructions']['TimeFrom'], $p['CollectionInstructions']['TimeTo']));
+    assert_same('Requestor', CCReturnPayload::build(cc_return_req(), array(), 1.0)['BillTo']);
+    foreach (array(array('pickup_date' => '2026-13-01'), array('pickup_time_from' => '10:00', 'pickup_time_to' => '12:00')) as $bad) {
+        assert_true(isset(CCReturnPayload::build(array_merge($req, $bad), array(), 1.0)['error']), json_encode($bad));
+    }
+    $noZip = $req;
+    $noZip['shipper_details']['postcode'] = '1234';
+    assert_true(isset(CCReturnPayload::build($noZip, array(), 1.0)['error']));
+}
+function test_lib_returns_pickup_settings_and_parts() {
+    $s = new CCReturnsSettings(new FakeConfig(array('shipping_courier_center_returns_method_pickup' => '1', 'shipping_courier_center_returns_method_boxnow' => '1')));
+    assert_same(array(R::METHOD_DROPOFF, R::METHOD_PICKUP, R::METHOD_BOXNOW), $s->enabledMethods());
+    assert_same(CCReturnsSettings::DEFAULT_PICKUP_TEXT, $s->instructionsFor(R::METHOD_PICKUP));
+    assert_same(CCReturnsSettings::DEFAULT_DROPOFF_TEXT, $s->instructionsFor(R::METHOD_DROPOFF));
+    assert_true($s->adminNotify());
+    assert_same(array('shop@example.gr'), $s->adminEmails('shop@example.gr'));
+    $s2 = new CCReturnsSettings(new FakeConfig(array('shipping_courier_center_returns_admin_emails' => 'a@x.gr, b@x.gr;bad', 'shipping_courier_center_returns_admin_notify' => '0')));
+    assert_same(array('a@x.gr', 'b@x.gr'), $s2->adminEmails('shop@example.gr'));
+    assert_false($s2->adminNotify());
+    $post = array('shipping_courier_center_returns_admin_emails' => 'a@x.gr, nope, a@x.gr');
+    $errors = CCReturnsSettings::sanitizePost($post, array());
+    assert_same('0', $post['shipping_courier_center_returns_method_pickup']);
+    assert_same('1', $post['shipping_courier_center_returns_admin_notify']);
+    assert_same('a@x.gr', $post['shipping_courier_center_returns_admin_emails']);
+    assert_count(1, $errors);
+    $parts = R::creation_parts(array('method' => R::METHOD_PICKUP, 'return_awb' => 'R9', 'pickup_date' => '2026-10-13', 'pickup_time_from' => '09:00', 'pickup_time_to' => '13:00',
+        'shipper_details' => array('address' => 'Σόλωνος 5', 'city' => 'Αθήνα', 'postcode' => '10671')));
+    assert_same(array('Ο courier θα παραλάβει το δέμα από τη διεύθυνση: ', 'Σόλωνος 5, Αθήνα 10671', false), $parts[1]);
+    assert_same(array('Παραλαβή: ', 'Τρίτη 13/10/2026, 09:00–13:00', false), $parts[2]);
+    assert_same('R9', $parts[3][1]);
+}
+function test_lib_returns_customer_mail_filter_and_admin_email() {
+    $svc = 'Opencart\Extension\Couriercenter\Library\CCReturnsService';
+    assert_true($svc::customerMailAllowed('created', array('origin' => 'customer', 'notify_customer' => 1)));
+    assert_true($svc::customerMailAllowed('rejected', array('origin' => 'customer', 'notify_customer' => 1)));
+    assert_false($svc::customerMailAllowed('rejected', array('origin' => 'shop', 'notify_customer' => 1)));
+    assert_true($svc::customerMailAllowed('created', array('origin' => 'shop', 'notify_customer' => 1)));
+    assert_false($svc::customerMailAllowed('created', array('origin' => 'shop', 'notify_customer' => 0)));
+    $row = array('order_id' => 7, 'method' => R::METHOD_PICKUP, 'status' => R::ST_PENDING, 'reason' => 'Μικρό <νούμερο>', 'return_awb' => '',
+        'pickup_date' => '2026-10-13', 'pickup_time_from' => null, 'pickup_time_to' => null, 'items' => array(array('name' => 'Μπλούζα', 'qty' => 1)));
+    $m = CCMailContent::adminNewReturnEmail($row, array('order_id' => 7, 'firstname' => 'Μαρία', 'lastname' => 'Κ.'), 'https://shop/admin?a=1&b=2', 'https://shop/admin/order');
+    assert_same('Νέο αίτημα επιστροφής για την παραγγελία #7', $m['subject']);
+    assert_contains('Ο πελάτης Μαρία Κ. ζήτησε επιστροφή για την παραγγελία #7.', $m['text']);
+    assert_contains('Παραλαβή: Τρίτη 13/10/2026, οποιαδήποτε ώρα 09:00–17:00', $m['text']);
+    assert_contains('Περιμένει την έγκρισή σας.', $m['text']);
+    assert_contains('Μικρό &lt;νούμερο&gt;', $m['html']);
+    assert_contains('a=1&amp;b=2', $m['html']);
+    $row['status'] = R::ST_CREATED;
+    $row['return_awb'] = 'R1';
+    assert_contains('Αριθμός αποστολής επιστροφής: R1', CCMailContent::adminNewReturnEmail($row, array('order_id' => 7), 'u', '')['text']);
+}

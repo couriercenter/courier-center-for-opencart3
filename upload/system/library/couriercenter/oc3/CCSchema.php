@@ -35,6 +35,11 @@ class CCSchema {
         );
     }
 
+    /** Changes when the event list changes: a new zip of the same version still re-registers them. */
+    public static function eventsSignature() {
+        return md5(json_encode(self::events()));
+    }
+
     /** Delete + insert our events (direct SQL: same table layout in every OpenCart 3.0.x). */
     public static function ensureEvents($db, $prefix) {
         self::removeEvents($db, $prefix);

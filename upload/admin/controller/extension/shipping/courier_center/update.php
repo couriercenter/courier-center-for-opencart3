@@ -7,6 +7,7 @@ require_once DIR_SYSTEM . 'library/couriercenter/oc3/CCControllerTrait.php';
 
 use Opencart\Extension\Couriercenter\Oc3\CCUpdater;
 use Opencart\Extension\Couriercenter\Oc3\CCVersion;
+use Opencart\Extension\Couriercenter\Oc3\CCSchema;
 
 class ControllerExtensionShippingCourierCenterUpdate extends Controller {
     use \Opencart\Extension\Couriercenter\Oc3\CCControllerTrait;
@@ -112,8 +113,9 @@ class ControllerExtensionShippingCourierCenterUpdate extends Controller {
             $this->ccBoot();
             $state = $this->ccState();
             $installed = $state->get('installed_version', '');
-            if ($installed !== '' && $installed !== CCVersion::get() && $this->ccCanModify()) {
-                $this->ccRepair(); // new files: updater, or a new zip uploaded in the Extension Installer
+            $stale = $installed !== CCVersion::get() || $state->get('installed_build', '') !== CCSchema::eventsSignature();
+            if ($installed !== '' && $stale && $this->ccCanModify()) {
+                $this->ccRepair(); // new files: updater, or a new zip uploaded in the Extension Installer (same version too)
             }
             $now = time();
             $latest = $state->get('update_latest', '');

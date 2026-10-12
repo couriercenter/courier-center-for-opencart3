@@ -253,6 +253,7 @@ trait CCControllerTrait {
         $state = $this->ccState();
         $state->ensureCronKey();
         $state->set('installed_version', CCVersion::get());
+        $state->set('installed_build', CCSchema::eventsSignature());
         $done[] = 'version ' . CCVersion::get();
         return $done;
     }

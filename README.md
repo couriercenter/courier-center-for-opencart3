@@ -42,4 +42,3 @@ Extensions → Shipping → Uninstall. Τις ρυθμίσεις τις σβήν
 ```
 
 Το library (`upload/system/library/couriercenter/CC*.php`) είναι **κοινό με το repo του OpenCart 4**: κάθε αλλαγή του περνά και εκεί (`tools/sync-library.php`).
-Σχεδιασμός: `docs/superpowers/specs/`. Πλάνο: `docs/superpowers/plans/`.

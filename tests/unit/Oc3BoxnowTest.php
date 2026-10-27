@@ -56,3 +56,37 @@ function test_oc3_boxnow_keep_on_edit_leaves_orders_without_box_now_alone() {
         CCBoxnow::keepOnEdit('{"cc_delivery_mode":"pick","cc_locker_id":"42","cc_locker_code":"42","cc_locker_name":"x"}',
             array('cc_delivery_mode' => 'auto', 'cc_locker_id' => '', 'cc_locker_code' => '', 'cc_locker_name' => '')));
 }
+/** 1.1.2: a storefront rewrite (one-page checkouts such as Journal 3 call editOrder) writes the CURRENT choice. */
+function test_oc3_boxnow_storefront_rewrite_uses_the_current_choice() {
+    $old = '{"5":"ΑΦΜ","cc_delivery_mode":"pick","cc_locker_id":"42","cc_locker_code":"42","cc_locker_name":"Σόλωνος 5"}';
+    $pick = array('selected' => true, 'delivery_mode' => 'pick', 'locker_id' => '77', 'locker_code' => '77', 'locker_name' => 'Δημοκρατίας 19');
+    // still BOX NOW: the session's locker
+    assert_same(array('5' => 'ΑΦΜ', 'cc_delivery_mode' => 'pick', 'cc_locker_id' => '77', 'cc_locker_code' => '77', 'cc_locker_name' => 'Δημοκρατίας 19'),
+        CCBoxnow::onEdit('journal3/checkout/save', $old, array('5' => 'ΑΦΜ'), $pick, 'courier_center.courier_center', array('courier_center')));
+    // unticked: no BOX NOW although the stored order had one
+    assert_same(array('5' => 'ΑΦΜ'), CCBoxnow::onEdit('journal3/checkout/save', $old, array('5' => 'ΑΦΜ'), null, 'courier_center.courier_center', array('courier_center')));
+    // switched to a shipping method without BOX NOW
+    assert_same(array('5' => 'ΑΦΜ'), CCBoxnow::onEdit('journal3/checkout/save', $old, array('5' => 'ΑΦΜ'), $pick, 'flat.flat', array('courier_center')));
+    // stale keys in the new data are replaced too
+    assert_same(array(), CCBoxnow::onEdit('checkout/confirm', '', array('cc_delivery_mode' => 'auto', 'cc_locker_id' => '', 'cc_locker_code' => '', 'cc_locker_name' => ''), null, 'flat.flat', array('flat')));
+}
+function test_oc3_boxnow_admin_rewrite_keeps_the_stored_choice() {
+    $old = '{"cc_delivery_mode":"pick","cc_locker_id":"42","cc_locker_code":"42","cc_locker_name":"Σόλωνος 5"}';
+    assert_same(array('cc_delivery_mode' => 'pick', 'cc_locker_id' => '42', 'cc_locker_code' => '42', 'cc_locker_name' => 'Σόλωνος 5'),
+        CCBoxnow::onEdit('api/order/edit', $old, array(), null, 'flat.flat', array('courier_center')));
+}
+/** 1.1.2: safety net for any checkout: the first confirmation (status 0 → >0) of the customer's own order writes the current choice. */
+function test_oc3_boxnow_first_confirmation_writes_the_current_choice() {
+    $pick = array('selected' => true, 'delivery_mode' => 'pick', 'locker_id' => '77', 'locker_code' => '77', 'locker_name' => 'Δημοκρατίας 19');
+    $want = array('5' => 'ΑΦΜ', 'cc_delivery_mode' => 'pick', 'cc_locker_id' => '77', 'cc_locker_code' => '77', 'cc_locker_name' => 'Δημοκρατίας 19');
+    // the checkout wrote the order without the choice
+    assert_same($want, CCBoxnow::onConfirm(10, 10, 0, 1, '{"5":"ΑΦΜ"}', $pick, 'courier_center.courier_center', array('courier_center')));
+    // nothing to do: already confirmed, another order of the session, no choice in the session, cancelled→0, method without BOX NOW
+    assert_same(null, CCBoxnow::onConfirm(10, 10, 1, 2, '{"5":"ΑΦΜ"}', $pick, 'courier_center.courier_center', array('courier_center')));
+    assert_same(null, CCBoxnow::onConfirm(10, 11, 0, 1, '{"5":"ΑΦΜ"}', $pick, 'courier_center.courier_center', array('courier_center')));
+    assert_same(null, CCBoxnow::onConfirm(10, 10, 0, 1, '{"5":"ΑΦΜ"}', null, 'courier_center.courier_center', array('courier_center')));
+    assert_same(null, CCBoxnow::onConfirm(10, 10, 0, 0, '{"5":"ΑΦΜ"}', $pick, 'courier_center.courier_center', array('courier_center')));
+    assert_same(null, CCBoxnow::onConfirm(10, 10, 0, 1, '{"5":"ΑΦΜ"}', $pick, 'flat.flat', array('courier_center')));
+    // already right: no write
+    assert_same(null, CCBoxnow::onConfirm(10, 10, 0, 1, json_encode($want), $pick, 'courier_center.courier_center', array('courier_center')));
+}

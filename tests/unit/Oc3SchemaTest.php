@@ -40,7 +40,7 @@ function test_oc3_schema_adds_only_missing_columns() {
 }
 function test_oc3_schema_events_match_the_spec() {
     $events = CCSchema::events();
-    assert_count(17, $events);
+    assert_count(18, $events);
     assert_same(array('admin/view/sale/order_info/before', 'extension/shipping/courier_center/order/orderTab', 0), $events['courier_center_order_panel']);
     assert_same(array('catalog/model/checkout/order/addOrderHistory/after', 'extension/shipping/courier_center/autocreate/autoCreate', 50), $events['courier_center_auto_create']);
     assert_same(array('catalog/view/mail/order_add/after', 'extension/shipping/courier_center/email/orderAdd', 0), $events['courier_center_mail_add']);
@@ -50,6 +50,7 @@ function test_oc3_schema_events_match_the_spec() {
     assert_same(array('catalog/view/common/footer/after', 'extension/shipping/courier_center/boxnow/widget', 0), $events['courier_center_boxnow_widget']);
     assert_same(array('catalog/controller/checkout/success/before', 'extension/shipping/courier_center/boxnow/clearSession', 0), $events['courier_center_boxnow_clear']);
     assert_same(array('catalog/model/checkout/order/editOrder/before', 'extension/shipping/courier_center/boxnow/keepOnEdit', 0), $events['courier_center_boxnow_edit']);
+    assert_same(array('catalog/model/checkout/order/addOrderHistory/before', 'extension/shipping/courier_center/boxnow/onConfirm', 0), $events['courier_center_boxnow_confirm']);
     foreach ($events as $code => $e) {
         assert_same(0, strpos($e[1], 'extension/shipping/courier_center/'), $code);
         assert_false(strpos($e[1], '.') !== false, "$code: OpenCart 3 actions use '/', not '.'");
@@ -63,7 +64,7 @@ function test_oc3_schema_reregisters_only_our_events() {
     assert_contains("'courier_center_order_panel'", $del[0]);
     assert_not_contains('%', $del[0]);
     $ins = $db->matching('/INSERT INTO `oc_event`/');
-    assert_count(17, $ins);
+    assert_count(18, $ins);
     assert_contains("'courier_center_email'", $del[0], 'the 1.0.0 email event is removed on repair');
     assert_contains("`status` = '1'", $ins[0]);
     CCSchema::removeEvents($db, 'oc_');

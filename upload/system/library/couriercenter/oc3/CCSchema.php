@@ -34,6 +34,7 @@ class CCSchema {
             'courier_center_boxnow_widget' => array('catalog/view/common/footer/after', 'extension/shipping/courier_center/boxnow/widget', 0),
             'courier_center_boxnow_order'  => array('catalog/model/checkout/order/addOrder/after', 'extension/shipping/courier_center/boxnow/saveToOrder', 0),
             'courier_center_boxnow_edit'   => array('catalog/model/checkout/order/editOrder/before', 'extension/shipping/courier_center/boxnow/keepOnEdit', 0),
+            'courier_center_boxnow_confirm' => array('catalog/model/checkout/order/addOrderHistory/before', 'extension/shipping/courier_center/boxnow/onConfirm', 0),
             'courier_center_boxnow_clear'  => array('catalog/controller/checkout/success/before', 'extension/shipping/courier_center/boxnow/clearSession', 0),
         );
     }

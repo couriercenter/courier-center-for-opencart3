@@ -102,10 +102,40 @@ class ControllerExtensionShippingCourierCenterBoxnow extends Controller {
             $this->ccBoot();
             $q = $this->db->query("SELECT `custom_field` FROM `" . DB_PREFIX . "order` WHERE `order_id` = '" . $order_id . "' LIMIT 1");
             if ($q->num_rows) {
-                $args[1]['custom_field'] = CCBoxnow::keepOnEdit($q->row['custom_field'], $args[1]['custom_field'] ?? array());
+                $route_now = isset($this->request->get['route']) ? (string)$this->request->get['route'] : '';
+                $stored = (isset($this->session->data['cc_boxnow']) && is_array($this->session->data['cc_boxnow'])) ? $this->session->data['cc_boxnow'] : null;
+                $args[1]['custom_field'] = CCBoxnow::onEdit($route_now, $q->row['custom_field'], $args[1]['custom_field'] ?? array(),
+                    $stored, isset($args[1]['shipping_code']) ? (string)$args[1]['shipping_code'] : '', $this->allowedMethods());
             }
         } catch (\Throwable $e) {
             $this->log->write('Courier Center BOX NOW edit: ' . $e->getMessage());
+        }
+    }
+
+    /** Event catalog/model/checkout/order/addOrderHistory/before: $args[0] = order_id, $args[1] = order_status_id. */
+    public function onConfirm(&$route = '', &$args = array()) {
+        if (!$this->ccPhpOk()) {
+            return;
+        }
+        try {
+            $order_id = isset($args[0]) ? (int)$args[0] : 0;
+            $stored = (isset($this->session->data['cc_boxnow']) && is_array($this->session->data['cc_boxnow'])) ? $this->session->data['cc_boxnow'] : null;
+            $session_order = isset($this->session->data['order_id']) ? (int)$this->session->data['order_id'] : 0;
+            if ($order_id <= 0 || $stored === null || $session_order !== $order_id) {
+                return;
+            }
+            $this->ccBoot();
+            $q = $this->db->query("SELECT `order_status_id`, `custom_field`, `shipping_code` FROM `" . DB_PREFIX . "order` WHERE `order_id` = '" . $order_id . "' LIMIT 1");
+            if (!$q->num_rows) {
+                return;
+            }
+            $cf = CCBoxnow::onConfirm($order_id, $session_order, $q->row['order_status_id'], isset($args[1]) ? $args[1] : 0,
+                $q->row['custom_field'], $stored, (string)$q->row['shipping_code'], $this->allowedMethods());
+            if ($cf !== null) {
+                $this->db->query("UPDATE `" . DB_PREFIX . "order` SET `custom_field` = '" . $this->db->escape(json_encode($cf)) . "' WHERE `order_id` = '" . $order_id . "'");
+            }
+        } catch (\Throwable $e) {
+            $this->log->write('Courier Center BOX NOW confirm: ' . $e->getMessage());
         }
     }
 

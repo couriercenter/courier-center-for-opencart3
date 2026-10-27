@@ -70,6 +70,50 @@ class CCBoxnow {
         return $new;
     }
 
+    /**
+     * custom_field for an editOrder call. Admin edit (api/...): keep the stored choice. Storefront rewrite
+     * (one-page checkouts such as Journal 3 rewrite the order on every change): the CURRENT session choice,
+     * none when it was unticked or the shipping method has no BOX NOW.
+     */
+    public static function onEdit($route, $old_custom_field, $new_custom_field, $session_sel, $shipping_code, array $allowed) {
+        if (strpos((string)$route, 'api/') === 0) {
+            return self::keepOnEdit($old_custom_field, $new_custom_field);
+        }
+        $cf = is_array($new_custom_field) ? $new_custom_field : json_decode((string)$new_custom_field, true);
+        if (!is_array($cf)) {
+            $cf = array();
+        }
+        foreach (array('cc_delivery_mode', 'cc_locker_id', 'cc_locker_code', 'cc_locker_name') as $k) {
+            unset($cf[$k]);
+        }
+        $sel = is_array($session_sel) ? self::sanitizeSelection($session_sel) : null;
+        if ($sel === null || !self::methodAllowed($shipping_code, $allowed)) {
+            return $cf;
+        }
+        return self::applyToCustomField($cf, $sel);
+    }
+
+    /**
+     * Safety net for any checkout (some write the order their own way): on the FIRST confirmation of the
+     * customer's own order (status 0 → >0, the session's order_id) write the session's current choice.
+     * @return array|null the new custom_field, null = leave the order alone
+     */
+    public static function onConfirm($order_id, $session_order_id, $old_status, $new_status, $old_custom_field, $session_sel, $shipping_code, array $allowed) {
+        if ((int)$order_id <= 0 || (int)$order_id !== (int)$session_order_id || (int)$old_status !== 0 || (int)$new_status <= 0) {
+            return null;
+        }
+        $sel = is_array($session_sel) ? self::sanitizeSelection($session_sel) : null;
+        if ($sel === null || !self::methodAllowed($shipping_code, $allowed)) {
+            return null;
+        }
+        $old = is_array($old_custom_field) ? $old_custom_field : json_decode((string)$old_custom_field, true);
+        if (!is_array($old)) {
+            $old = array();
+        }
+        $new = self::applyToCustomField($old, $sel);
+        return $new === $old ? null : $new;
+    }
+
     /** Is BOX NOW offered for this shipping code ("courier_center.courier_center")? */
     public static function methodAllowed($shipping_code, array $allowed) {
         $code = (string)$shipping_code;

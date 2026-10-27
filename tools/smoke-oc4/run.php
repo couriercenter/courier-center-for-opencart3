@@ -106,7 +106,7 @@ try {
     }
     $rep = js($admin->post($a('extension/couriercenter/shipping/courier_center.repair'), array()));
     c_ok(!empty($rep['success']), 'repair: ' . implode(' · ', isset($rep['done']) ? $rep['done'] : array()));
-    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 17 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '17 events, no separate tracking email');
+    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 18 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '18 events, no separate tracking email');
     foreach (array('street_number_field', 'auto_complete_notify', 'pseudo_cron', 'returns_email_created') as $name) {
         c_ok(strpos($sp2, 'name="shipping_courier_center_' . $name . '"') !== false, "settings page has $name");
     }

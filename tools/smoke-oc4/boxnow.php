@@ -91,7 +91,7 @@ try {
     $token = isset($ut[1]) ? $ut[1] : '';
     c_ok($token !== '', 'admin login (temporary user ccsmoke)');
     $admin->get($base . 'admin/index.php?route=extension/couriercenter/shipping/courier_center&user_token=' . $token);
-    foreach (array('courier_center_boxnow_order', 'courier_center_boxnow_edit', 'courier_center_boxnow_clear') as $code) {
+    foreach (array('courier_center_boxnow_order', 'courier_center_boxnow_edit', 'courier_center_boxnow_confirm', 'courier_center_boxnow_clear') as $code) {
         c_ok(q1("SELECT 1 AS x FROM `{$P}event` WHERE `code` = '$code' AND `status` = 1") !== null, "event $code");
     }
 
@@ -117,8 +117,15 @@ try {
     $c = $cf($id);
     c_ok(isset($c['cc_delivery_mode']) && $c['cc_delivery_mode'] === 'auto', "order #$id has BOX NOW «auto» after ticking it");
 
-    echo "== storefront: checkout/success clears the choice for the next order\n";
+    echo "== storefront: safety net — the first confirmation writes the current choice (1.1.2)\n";
+    // a checkout that writes the order its own way: custom_field without the choice
+    q1("UPDATE `{$P}order` SET `custom_field` = '[]' WHERE `order_id` = '$id'");
     $h->post($u('extension/opencart/payment/bank_transfer.confirm'), array());
+    $c = $cf($id);
+    $st = q1("SELECT `order_status_id` FROM `{$P}order` WHERE `order_id` = '$id'");
+    c_ok((int)$st['order_status_id'] > 0 && isset($c['cc_delivery_mode']) && $c['cc_delivery_mode'] === 'auto', "first confirmation wrote BOX NOW «auto» into order #$id");
+
+    echo "== storefront: checkout/success clears the choice for the next order\n";
     $h->get($u('checkout/success'));
     js($h->post($u('checkout/cart.add'), array('product_id' => 40, 'quantity' => 1)));
     js($h->get($u('checkout/shipping_method.quote')));

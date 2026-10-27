@@ -89,6 +89,26 @@ class ControllerExtensionShippingCourierCenterBoxnow extends Controller {
         }
     }
 
+    /** Event catalog/model/checkout/order/editOrder/before: $args[0] = order_id, $args[1] = order data. */
+    public function keepOnEdit(&$route = '', &$args = array()) {
+        if (!$this->ccPhpOk()) {
+            return;
+        }
+        try {
+            $order_id = isset($args[0]) ? (int)$args[0] : 0;
+            if ($order_id <= 0 || !isset($args[1]) || !is_array($args[1])) {
+                return;
+            }
+            $this->ccBoot();
+            $q = $this->db->query("SELECT `custom_field` FROM `" . DB_PREFIX . "order` WHERE `order_id` = '" . $order_id . "' LIMIT 1");
+            if ($q->num_rows) {
+                $args[1]['custom_field'] = CCBoxnow::keepOnEdit($q->row['custom_field'], $args[1]['custom_field'] ?? array());
+            }
+        } catch (\Throwable $e) {
+            $this->log->write('Courier Center BOX NOW edit: ' . $e->getMessage());
+        }
+    }
+
     /** Event catalog/controller/checkout/success/before. */
     public function clearSession(&$route = '', &$data = array()) {
         unset($this->session->data['cc_boxnow']);

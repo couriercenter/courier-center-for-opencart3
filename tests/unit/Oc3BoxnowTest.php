@@ -39,3 +39,20 @@ function test_oc3_boxnow_method_allowed() {
     assert_false(CCBoxnow::methodAllowed('flat.flat', array('courier_center')));
     assert_false(CCBoxnow::methodAllowed('', array('courier_center')));
 }
+/** Admin order edit (api/order/edit → editOrder) rewrites custom_field from the customer data: keep the BOX NOW choice. */
+function test_oc3_boxnow_kept_when_the_admin_edits_the_order() {
+    $old = '{"5":"ΑΦΜ","cc_delivery_mode":"pick","cc_locker_id":"42","cc_locker_code":"42","cc_locker_name":"Σόλωνος 5"}';
+    assert_same(array('5' => 'ΑΦΜ', 'cc_delivery_mode' => 'pick', 'cc_locker_id' => '42', 'cc_locker_code' => '42', 'cc_locker_name' => 'Σόλωνος 5'),
+        CCBoxnow::keepOnEdit($old, array('5' => 'ΑΦΜ')));
+    assert_same(array('cc_delivery_mode' => 'auto', 'cc_locker_id' => '', 'cc_locker_code' => '', 'cc_locker_name' => ''),
+        CCBoxnow::keepOnEdit('{"cc_delivery_mode":"auto","cc_locker_id":"","cc_locker_code":"","cc_locker_name":""}', array()));
+}
+function test_oc3_boxnow_keep_on_edit_leaves_orders_without_box_now_alone() {
+    assert_same(array('5' => 'ΑΦΜ'), CCBoxnow::keepOnEdit('{"5":"old"}', array('5' => 'ΑΦΜ')));
+    assert_same(array(), CCBoxnow::keepOnEdit('', array()));
+    assert_same(array(), CCBoxnow::keepOnEdit(null, null));
+    // a choice already in the new data wins
+    assert_same(array('cc_delivery_mode' => 'auto', 'cc_locker_id' => '', 'cc_locker_code' => '', 'cc_locker_name' => ''),
+        CCBoxnow::keepOnEdit('{"cc_delivery_mode":"pick","cc_locker_id":"42","cc_locker_code":"42","cc_locker_name":"x"}',
+            array('cc_delivery_mode' => 'auto', 'cc_locker_id' => '', 'cc_locker_code' => '', 'cc_locker_name' => '')));
+}

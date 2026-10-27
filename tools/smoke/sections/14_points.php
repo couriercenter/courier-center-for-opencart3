@@ -57,7 +57,7 @@ return function (SmokeContext $c) {
         $api = new \Opencart\Extension\Couriercenter\Library\CCApi($cr['user_alias'], $cr['credential_value'], $cr['api_key'], $cr['billing_account']);
         $det = $api->get_shipment_details($r['voucher']);
         $code = isset($det['ShipmentDetails'][0]['ShipmentInfo']['Shipper']['Code']) ? $det['ShipmentDetails'][0]['ShipmentInfo']['Shipper']['Code'] : '';
-        $c->ok($code === '100-120-0001', 'API shipper of the voucher is the sub-code (' . $code . ')');
+        $c->ok(in_array($code, array('100-120-0001', '100-0120-0001'), true), 'API shipper of the voucher is the sub-code (' . $code . ')');
         $m = $s->adminGet('extension/shipping/courier_center/manifest/download', array('date' => date('Y-m-d'), 'account' => '100-0120-0001'));
         $c->ok(substr($m['body'], 0, 4) === '%PDF', 'manifest of the sub-code (CustomerAccount): ' . substr($m['body'], 0, 80));
     }

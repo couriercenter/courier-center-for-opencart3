@@ -74,4 +74,24 @@ return function (SmokeContext $c) {
     $c->ok(!empty($r['success']) && strpos($msg, 'BOX NOW: 1') !== false, 'bulk create detects the BOX NOW order: ' . $msg);
     $row = $s->row("SELECT `voucher_number` FROM `{p}cc_shipments` WHERE `order_id` = '$auto'");
     $c->track(isset($row['voucher_number']) ? $row['voucher_number'] : '');
+
+    // 5. Admin order edit (Edit button → api/order/edit → editOrder) keeps the locker (1.1.1).
+    $t = $s->apiLogin();
+    $s->api($t, 'api/customer', array('customer_id' => 0, 'customer_group_id' => 1, 'firstname' => 'Δοκιμή', 'lastname' => 'Smoke',
+        'email' => 'boxnow@example.com', 'telephone' => '6912345678'));
+    $s->api($t, 'api/cart/add', array('product_id' => 43, 'quantity' => 2));
+    $a = $s->address();
+    $s->api($t, 'api/payment/address', $a);
+    $s->api($t, 'api/shipping/address', $a);
+    $s->api($t, 'api/shipping/methods');
+    $s->api($t, 'api/payment/methods');
+    $s->api($t, 'api/order/edit', array('shipping_method' => 'courier_center.courier_center', 'payment_method' => 'bank_transfer',
+        'order_status_id' => 1, 'comment' => 'cc smoke edit'), array('order_id' => $first));
+    $cf = $custom($first);
+    $qty = $s->row("SELECT `quantity` FROM `{p}order_product` WHERE `order_id` = '$first'");
+    $c->ok(isset($qty['quantity']) && (int)$qty['quantity'] === 2, "order #$first was edited");
+    $c->ok(isset($cf['cc_locker_id'], $cf['cc_delivery_mode']) && $cf['cc_locker_id'] === 'L123' && $cf['cc_delivery_mode'] === 'pick' && $cf['cc_locker_name'] === 'Locker Α & Β', "admin edit kept the locker of order #$first");
+    $s->api($t, 'api/order/edit', array('shipping_method' => 'flat.flat', 'payment_method' => 'bank_transfer',
+        'order_status_id' => 1, 'comment' => 'cc smoke edit'), array('order_id' => $flat));
+    $c->ok(!isset($custom($flat)['cc_delivery_mode']), 'admin edit adds no BOX NOW to a flat-rate order');
 };

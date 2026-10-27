@@ -51,6 +51,25 @@ class CCBoxnow {
         return $cf;
     }
 
+    /**
+     * The admin order edit (api/order/edit → editOrder) rewrites custom_field from the customer data and
+     * would drop the BOX NOW choice: copy it from the stored custom_field unless the new data has one.
+     */
+    public static function keepOnEdit($old_custom_field, $new_custom_field) {
+        $old = is_array($old_custom_field) ? $old_custom_field : json_decode((string)$old_custom_field, true);
+        $new = is_array($new_custom_field) ? $new_custom_field : json_decode((string)$new_custom_field, true);
+        if (!is_array($new)) {
+            $new = array();
+        }
+        if (!is_array($old) || !isset($old['cc_delivery_mode']) || isset($new['cc_delivery_mode'])) {
+            return $new;
+        }
+        foreach (array('cc_delivery_mode', 'cc_locker_id', 'cc_locker_code', 'cc_locker_name') as $k) {
+            $new[$k] = (string)($old[$k] ?? '');
+        }
+        return $new;
+    }
+
     /** Is BOX NOW offered for this shipping code ("courier_center.courier_center")? */
     public static function methodAllowed($shipping_code, array $allowed) {
         $code = (string)$shipping_code;

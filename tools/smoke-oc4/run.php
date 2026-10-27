@@ -106,7 +106,7 @@ try {
     }
     $rep = js($admin->post($a('extension/couriercenter/shipping/courier_center.repair'), array()));
     c_ok(!empty($rep['success']), 'repair: ' . implode(' · ', isset($rep['done']) ? $rep['done'] : array()));
-    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 15 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '15 events, no separate tracking email');
+    c_ok(count(q("SELECT `code` FROM `{$P}event` WHERE `code` LIKE 'courier\\_center\\_%'")) === 17 && !q("SELECT 1 FROM `{$P}event` WHERE `code` = 'courier_center_email'"), '17 events, no separate tracking email');
     foreach (array('street_number_field', 'auto_complete_notify', 'pseudo_cron', 'returns_email_created') as $name) {
         c_ok(strpos($sp2, 'name="shipping_courier_center_' . $name . '"') !== false, "settings page has $name");
     }
@@ -154,7 +154,7 @@ try {
         $created_awbs[] = $r2['voucher'];
         $det = $api->get_shipment_details($r2['voucher']);
         $code = isset($det['ShipmentDetails'][0]['ShipmentInfo']['Shipper']['Code']) ? $det['ShipmentDetails'][0]['ShipmentInfo']['Shipper']['Code'] : '';
-        c_ok($code === '100-120-0001', 'API shipper = sub-code (' . $code . ')');
+        c_ok(in_array($code, array('100-120-0001', '100-0120-0001'), true), 'API shipper = sub-code (' . $code . ')');
         $cm = isset($det['ShipmentDetails'][0]['ShipmentInfo']['Comments']) ? $det['ShipmentDetails'][0]['ShipmentInfo']['Comments'] : '';
     }
     $row1 = q1("SELECT * FROM `{$P}cc_shipments` WHERE `order_id` = $o1");

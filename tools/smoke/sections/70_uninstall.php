@@ -17,5 +17,5 @@ return function (SmokeContext $c) {
     $c->ok(isset($k2['value']) && $k2['value'] === $key, 'uninstall keeps the cron key');
 
     $s->adminGet('extension/extension/shipping/install', array('extension' => 'courier_center'));
-    $c->ok($events() === 16, 'reinstall registers the events again');
+    $c->ok($events() === 17, 'reinstall registers the events again');
 };

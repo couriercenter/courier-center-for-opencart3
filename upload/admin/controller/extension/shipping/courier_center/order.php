@@ -102,6 +102,8 @@ class ControllerExtensionShippingCourierCenterOrder extends Controller {
                 'url_void'            => $this->ccLink($route_base . 'voidShipment'),
                 'url_status'          => $this->ccLink($route_base . 'updateStatus'),
                 'url_remove_bn'       => $this->ccLink($route_base . 'removeBoxNow'),
+                'url_set_locker'      => $this->ccLink($route_base . 'setLocker'),
+                'bn_partner_id'       => \Opencart\Extension\Couriercenter\Oc3\CCBoxnow::PARTNER_ID,
                 'url_download'        => $this->ccLink($route_base . 'downloadVoucher', 'order_id=' . $order_id),
                 'url_download_return' => $this->ccLink($route_base . 'downloadVoucher', 'order_id=' . $order_id . '&type=return'),
                 'has_points'          => $points->hasSubs(),

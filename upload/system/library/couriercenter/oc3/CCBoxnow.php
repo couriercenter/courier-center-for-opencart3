@@ -38,6 +38,22 @@ class CCBoxnow {
         return array('selected' => true, 'delivery_mode' => 'pick', 'locker_id' => $id, 'locker_code' => $code !== '' ? $code : $id, 'locker_name' => $name);
     }
 
+    /** The locker the merchant picked on the admin map (POST locker_id/code/name) as a "pick" selection, or null. */
+    public static function adminPick(array $post) {
+        $sel = self::sanitizeSelection(array_merge($post, array('selected' => '1', 'delivery_mode' => 'pick')));
+        return $sel['delivery_mode'] === 'pick' ? $sel : null;
+    }
+
+    /** The order's current BOX NOW choice for an order history note. */
+    public static function choiceLabel(array $cf) {
+        $name = trim((string)($cf['cc_locker_name'] ?? ''));
+        $id = trim((string)($cf['cc_locker_id'] ?? ''));
+        if ($name !== '' || $id !== '') {
+            return $name !== '' ? $name : $id;
+        }
+        return (string)($cf['cc_delivery_mode'] ?? '') === 'auto' ? 'Αυτόματη εύρεση' : '—';
+    }
+
     /** Merge a selection into an order's custom_field (array or JSON string). */
     public static function applyToCustomField($custom_field, array $sel) {
         $cf = is_array($custom_field) ? $custom_field : json_decode((string)$custom_field, true);

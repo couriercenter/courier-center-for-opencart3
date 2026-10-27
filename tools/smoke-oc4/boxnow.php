@@ -147,13 +147,39 @@ try {
         array('order_status_id' => 1)));
     c_ok(empty($r['error']) && !empty($r['success']) && isset($r['order_id']) && (int)$r['order_id'] === $id, "admin confirm rewrote order #$id: " . json_encode($r, JSON_UNESCAPED_UNICODE));
     c_ok($has_locker($cf($id)), "admin edit kept the locker of order #$id");
+
+    echo "== admin map (1.1.3): the merchant picks the locker the customer said on the phone\n";
+    $checkout(null);
+    $id = $latest();
+    $orders[] = $id;
+    q1("UPDATE `{$P}order` SET `order_status_id` = 1 WHERE `order_id` = '$id'"); // history notes need a confirmed order
+    $info = function ($id) use ($admin, $base, $token) {
+        return $admin->get($base . 'admin/index.php?route=sale/order.info&order_id=' . $id . '&user_token=' . $token)['body'];
+    };
+    $set = function (array $f) use ($admin, $base, $token) {
+        return js($admin->post($base . 'admin/index.php?route=extension/couriercenter/shipping/courier_center.setLocker&user_token=' . $token, $f));
+    };
+    $page = $info($id);
+    c_ok(strpos($page, 'name="cc_bn_mode" value="pick"') !== false && strpos($page, 'id="cc-bn-admin-overlay"') !== false, "order #$id without BOX NOW: «Επιλογή από χάρτη» + map modal");
+    $r = $set(array('order_id' => $id, 'locker_id' => ''));
+    c_ok(empty($r['success']), 'setLocker without a locker is refused');
+    $r = $set(array('order_id' => $id, 'locker_id' => 'L123', 'locker_code' => 'L123', 'locker_name' => 'Locker Α & Β'));
+    c_ok(!empty($r['success']) && $has_locker($cf($id)), "setLocker wrote the locker into order #$id: " . json_encode($r, JSON_UNESCAPED_UNICODE));
+    $h = q1("SELECT `comment` FROM `{$P}order_history` WHERE `order_id` = '$id' ORDER BY `order_history_id` DESC LIMIT 1");
+    c_ok(isset($h['comment']) && strpos($h['comment'], 'Locker Α & Β') !== false, 'order history note of the change');
+    c_ok(strpos($info($id), 'data-cc-action="change-locker"') !== false, 'the order now shows the locker with «Αλλαγή locker»');
+    // an active voucher (a row only, no API call): first void, then change
+    q1("INSERT INTO `{$P}cc_shipments` SET `order_id` = '$id', `voucher_number` = 'SMOKE1', `is_voided` = 0");
+    $r = $set(array('order_id' => $id, 'locker_id' => '999', 'locker_name' => 'X'));
+    c_ok(empty($r['success']) && $has_locker($cf($id)), 'setLocker refused while the voucher is active');
+    c_ok(strpos($info($id), 'data-cc-action="change-locker"') === false, 'no «Αλλαγή locker» with an active voucher');
 } catch (Throwable $e) {
     c_ok(false, get_class($e) . ': ' . $e->getMessage());
 }
 
 echo "== cleanup\n";
 foreach ($orders as $id) {
-    foreach (array('order', 'order_product', 'order_option', 'order_total', 'order_history', 'order_voucher', 'order_subscription') as $t) {
+    foreach (array('order', 'order_product', 'order_option', 'order_total', 'order_history', 'order_voucher', 'order_subscription', 'cc_shipments') as $t) {
         if (q1("SHOW TABLES LIKE '{$P}{$t}'") !== null) {
             q1("DELETE FROM `{$P}{$t}` WHERE `order_id` = '" . (int)$id . "'");
         }

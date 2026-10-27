@@ -51,6 +51,12 @@ class ModelExtensionShippingCourierCenter extends Model {
         $this->db->query("UPDATE `" . DB_PREFIX . "order` SET `custom_field` = '" . $this->db->escape(json_encode($cf)) . "' WHERE `order_id` = '" . (int)$order_id . "'");
     }
 
+    /** Write a BOX NOW selection (CCBoxnow::sanitizeSelection format) into the order's custom_field. */
+    public function setOrderBoxnow($order_id, array $sel) {
+        $cf = \Opencart\Extension\Couriercenter\Oc3\CCBoxnow::applyToCustomField($this->getOrderCustomField($order_id), $sel);
+        $this->db->query("UPDATE `" . DB_PREFIX . "order` SET `custom_field` = '" . $this->db->escape(json_encode($cf)) . "' WHERE `order_id` = '" . (int)$order_id . "'");
+    }
+
     public function voidShipment($order_id) {
         $this->db->query("UPDATE `" . DB_PREFIX . "cc_shipments` SET `is_voided` = 1 WHERE `order_id` = '" . (int)$order_id . "'");
     }

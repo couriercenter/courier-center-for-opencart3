@@ -95,6 +95,25 @@ return function (SmokeContext $c) {
         'order_status_id' => 1, 'comment' => 'cc smoke edit'), array('order_id' => $flat));
     $c->ok(!isset($custom($flat)['cc_delivery_mode']), 'admin edit adds no BOX NOW to a flat-rate order');
 
+    // 5b. Admin map (1.1.3): the merchant picks the locker the customer said on the phone.
+    $tab = function ($id) use ($s) {
+        return $s->adminGet('sale/order/info', array('order_id' => $id))['body'];
+    };
+    $page = $tab($flat);
+    $c->ok(strpos($page, 'name="cc_bn_mode" value="pick"') !== false && strpos($page, 'id="cc-bn-admin-overlay"') !== false, 'order without BOX NOW: «Επιλογή από χάρτη» + map modal');
+    $r = $s->adminJson('extension/shipping/courier_center/setLocker', array('order_id' => $flat, 'locker_id' => ''));
+    $c->ok(empty($r['success']), 'setLocker without a locker is refused');
+    $r = $s->adminJson('extension/shipping/courier_center/setLocker', array('order_id' => $flat, 'locker_id' => '4321', 'locker_code' => '4321', 'locker_name' => 'Περίπτερο Α & Β'));
+    $cf = $custom($flat);
+    $c->ok(!empty($r['success']) && isset($cf['cc_locker_id'], $cf['cc_delivery_mode']) && $cf['cc_locker_id'] === '4321' && $cf['cc_delivery_mode'] === 'pick'
+        && $cf['cc_locker_name'] === 'Περίπτερο Α & Β', 'setLocker wrote the locker into the order: ' . json_encode($r, JSON_UNESCAPED_UNICODE));
+    $h = $s->row("SELECT `comment` FROM `{p}order_history` WHERE `order_id` = '$flat' ORDER BY `order_history_id` DESC LIMIT 1");
+    $c->ok(isset($h['comment']) && strpos($h['comment'], 'Περίπτερο Α & Β') !== false, 'order history note of the change');
+    $c->ok(strpos($tab($flat), 'data-cc-action="change-locker"') !== false, 'the order now shows the locker with «Αλλαγή locker»');
+    $r = $s->adminJson('extension/shipping/courier_center/setLocker', array('order_id' => $auto, 'locker_id' => '4321', 'locker_name' => 'X'));
+    $c->ok(empty($r['success']) && $custom($auto)['cc_delivery_mode'] === 'auto', 'setLocker refused while the voucher is active');
+    $c->ok(strpos($tab($auto), 'data-cc-action="change-locker"') === false, 'no «Αλλαγή locker» with an active voucher');
+
     // 6. One-page checkouts (Journal 3 …) rewrite the order with editOrder from the storefront (1.1.2):
     //    a temporary controller does the same; the order must follow the CURRENT choice.
     $ctrl = rtrim($s->env['dir'], '/') . '/catalog/controller/ccsmoke_rewrite.php';

@@ -90,3 +90,20 @@ function test_oc3_boxnow_first_confirmation_writes_the_current_choice() {
     // already right: no write
     assert_same(null, CCBoxnow::onConfirm(10, 10, 0, 1, json_encode($want), $pick, 'courier_center.courier_center', array('courier_center')));
 }
+/** 1.1.3: the locker the merchant picks on the admin map (the customer said it on the phone). */
+function test_oc3_boxnow_admin_pick_needs_a_locker() {
+    assert_same(null, CCBoxnow::adminPick(array()));
+    assert_same(null, CCBoxnow::adminPick(array('locker_id' => '  ', 'locker_name' => 'x')));
+}
+function test_oc3_boxnow_admin_pick_is_a_pick_selection() {
+    // OpenCart HTML-escapes POST data: the name arrives as "&amp;"
+    $s = CCBoxnow::adminPick(array('locker_id' => '4321', 'locker_name' => 'Περίπτερο Α &amp; Β', 'selected' => '', 'delivery_mode' => 'auto'));
+    assert_same(array('selected' => true, 'delivery_mode' => 'pick', 'locker_id' => '4321', 'locker_code' => '4321', 'locker_name' => 'Περίπτερο Α & Β'), $s);
+    assert_same('pick', CCBoxnow::applyToCustomField('{"cc_delivery_mode":"auto"}', $s)['cc_delivery_mode']);
+}
+function test_oc3_boxnow_admin_label_of_the_current_choice() {
+    assert_same('Παλιό', CCBoxnow::choiceLabel(array('cc_delivery_mode' => 'pick', 'cc_locker_id' => '1', 'cc_locker_name' => 'Παλιό')));
+    assert_same('1', CCBoxnow::choiceLabel(array('cc_delivery_mode' => 'pick', 'cc_locker_id' => '1', 'cc_locker_name' => '')));
+    assert_same('Αυτόματη εύρεση', CCBoxnow::choiceLabel(array('cc_delivery_mode' => 'auto')));
+    assert_same('—', CCBoxnow::choiceLabel(array()));
+}

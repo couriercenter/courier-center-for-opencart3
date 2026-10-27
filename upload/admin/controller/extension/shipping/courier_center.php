@@ -17,6 +17,7 @@ use Opencart\Extension\Couriercenter\Library\CCReturnsSettings;
 use Opencart\Extension\Couriercenter\Library\CCStatusTracker;
 use Opencart\Extension\Couriercenter\Oc3\CCErrorGuard;
 use Opencart\Extension\Couriercenter\Library\CCVoucherService;
+use Opencart\Extension\Couriercenter\Oc3\CCBoxnow;
 use Opencart\Extension\Couriercenter\Oc3\CCSchema;
 use Opencart\Extension\Couriercenter\Oc3\CCState;
 use Opencart\Extension\Couriercenter\Oc3\CCTelemetry;
@@ -362,7 +363,7 @@ class ControllerExtensionShippingCourierCenter extends Controller {
                 'error' => 'Η παραγγελία χρησιμοποιεί μέθοδο αποστολής «' . ($name !== '' ? $name : '—') . '» που δεν διαχειρίζεται το plugin. Δημιουργία αποστολής στην Courier Center ούτως ή άλλως;'));
             return;
         }
-        $this->ccJson($svc->createForOrder($order, array(
+        $r = $svc->createForOrder($order, array(
             'service_type'  => (string)($p['service_type'] ?? 'next_day'),
             'parcel_count'  => (int)($p['parcel_count'] ?? 1),
             'return_option' => (string)($p['return_option'] ?? 'none'),
@@ -372,7 +373,50 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             'locker_name'   => $this->ccText($p['locker_name'] ?? ''),
             'pickup_point'  => trim($this->ccText($p['pickup_point'] ?? '')),
             'mode'          => 'manual',
-        )));
+        ));
+        // «Επιλογή από χάρτη» in the form (1.1.3): the order keeps the locker, like a checkout choice
+        // (after a void the panel shows it again).
+        $picked = !empty($p['boxnow']) ? CCBoxnow::adminPick($p) : null;
+        if (!empty($r['success']) && $picked) {
+            $this->load->model('extension/shipping/courier_center');
+            $this->model_extension_shipping_courier_center->setOrderBoxnow($order_id, $picked);
+        }
+        $this->ccJson($r);
+    }
+
+    /**
+     * The merchant picked a BOX NOW locker on the admin map (1.1.3): POST order_id, locker_id, locker_code,
+     * locker_name. Saved into the order (custom_field) like a checkout choice; not with an active voucher.
+     */
+    public function setLocker() {
+        if (!$this->ccJsonStart()) {
+            return;
+        }
+        if (!$this->ccCanModify()) {
+            $this->ccDeny();
+            return;
+        }
+        $order_id = (int)($this->request->post['order_id'] ?? 0);
+        if (!$this->loadOrder($order_id)) {
+            $this->ccJson(array('success' => false, 'error' => 'Παραγγελία δε βρέθηκε'));
+            return;
+        }
+        $shipment = $this->ccService()->getShipment($order_id);
+        if (!empty($shipment['voucher_number']) && empty($shipment['is_voided'])) {
+            $this->ccJson(array('success' => false, 'error' => 'Υπάρχει ενεργό voucher. Ακύρωσε πρώτα την αποστολή και μετά άλλαξε locker.'));
+            return;
+        }
+        $sel = CCBoxnow::adminPick($this->request->post);
+        if (!$sel) {
+            $this->ccJson(array('success' => false, 'error' => 'Δεν επιλέχθηκε locker.'));
+            return;
+        }
+        $this->load->model('extension/shipping/courier_center');
+        $old = CCBoxnow::choiceLabel($this->model_extension_shipping_courier_center->getOrderCustomField($order_id));
+        $this->model_extension_shipping_courier_center->setOrderBoxnow($order_id, $sel);
+        $new = $sel['locker_name'] !== '' ? $sel['locker_name'] : $sel['locker_id'];
+        $this->ccService()->history()->add($order_id, 'Το BOX NOW locker άλλαξε από τον merchant: ' . $old . ' → ' . $new . ' (ID: ' . $sel['locker_id'] . ')');
+        $this->ccJson(array('success' => true, 'message' => 'Το locker άλλαξε: ' . $new));
     }
 
     /**

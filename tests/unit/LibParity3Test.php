@@ -131,3 +131,28 @@ function test_lib_returns_customer_emails_can_be_switched_off() {
     CCReturnsSettings::sanitizePost($post, array());
     assert_same('0', $post['shipping_courier_center_returns_email_rejected']);
 }
+
+function test_lib_pickup_status_is_off_unless_chosen() {
+    list($svc) = cc_service(array());
+    assert_same(0, $svc->pickupStatusId(), 'unset = off (existing shops change nothing on update)');
+    assert_true($svc->pickupNotify());
+    list($svc) = cc_service(array('shipping_courier_center_pickup_status_id' => '3', 'shipping_courier_center_pickup_notify' => '0'));
+    assert_same(3, $svc->pickupStatusId());
+    assert_false($svc->pickupNotify());
+}
+
+function test_lib_order_shipped_email() {
+    $m = CCMailContent::orderShippedEmail(array('order_id' => 12, 'firstname' => 'Μαρία'),
+        array(array('name' => 'Κούπα', 'quantity' => 1)),
+        array('voucher_number' => 'AWB9', 'tracking_number' => 'AWB9', 'is_voided' => '0', 'is_boxnow' => '1', 'boxnow_parcel_id' => 'P1'),
+        'https://t.example/?n={{tracking}}');
+    assert_same('Η παραγγελία #12 στάλθηκε', $m['subject']);
+    assert_contains('Γεια σας Μαρία,', $m['text']);
+    assert_contains('παρέλαβε', $m['text']);
+    assert_contains('BOX NOW', $m['text']);
+    assert_contains('https://t.example/?n=AWB9', $m['html']);
+    $plain = CCMailContent::orderShippedEmail(array('order_id' => 13), array(),
+        array('voucher_number' => 'AWB8', 'is_voided' => '0'), 'https://t.example/?n={{tracking}}');
+    assert_not_contains('BOX NOW', $plain['text']);
+    assert_contains('Γεια σας,', $plain['text']);
+}

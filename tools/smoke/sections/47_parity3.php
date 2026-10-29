@@ -20,7 +20,7 @@ return function (SmokeContext $c) {
 
     // 1. New fields on the settings page
     $page = $s->adminGet('extension/shipping/courier_center')['body'];
-    foreach (array('street_number_field', 'auto_complete_notify', 'pseudo_cron', 'returns_email_created', 'returns_email_received', 'returns_email_rejected') as $name) {
+    foreach (array('street_number_field', 'auto_complete_notify', 'pickup_status_id', 'pickup_notify', 'pseudo_cron', 'returns_email_created', 'returns_email_received', 'returns_email_rejected') as $name) {
         $c->ok(strpos($page, 'name="shipping_courier_center_' . $name . '"') !== false, "settings page has $name");
     }
 

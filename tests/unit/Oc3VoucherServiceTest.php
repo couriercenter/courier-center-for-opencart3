@@ -96,7 +96,7 @@ function test_oc3_service_resets_a_voided_row_for_a_new_voucher() {
     $svc->createForOrder(cc_oc3_order(), array());
     $upd = $db->matching('/UPDATE `oc_cc_shipments` SET/');
     assert_count(1, $upd);
-    foreach (array("`is_voided` = '0'", "`is_final` = '0'", "`status_code` = ''", '`last_checked_at` = NULL', '`created_at` = NOW()') as $part) {
+    foreach (array("`is_voided` = '0'", "`is_final` = '0'", "`status_code` = ''", '`last_checked_at` = NULL', '`picked_up_at` = NULL', '`created_at` = NOW()') as $part) {
         assert_contains($part, $upd[0], 'spec 10 #3');
     }
 }

@@ -81,6 +81,7 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             'shipper_name', 'shipper_address', 'shipper_postcode', 'shipper_city', 'shipper_phone',
             'tracking_url', 'email_tracking_enabled',
             'boxnow_enabled', 'boxnow_default_selected', 'print_template', 'print_template_boxnow', 'auto_complete_status_id', 'auto_complete_notify',
+            'pickup_status_id', 'pickup_notify',
             'street_number_field', 'pseudo_cron',
             'auto_create_enabled', 'auto_create_status_id',
             'cost', 'cod_fee', 'geo_zone_id', 'tax_class_id', 'sort_order',
@@ -109,12 +110,12 @@ class ControllerExtensionShippingCourierCenter extends Controller {
             $data['print_template_boxnow'] = 'singlepdf_100x150_4up';
         }
         // auto_complete_status_id: '' = automatic (the shop's first complete status), '0' = off.
-        foreach (array('auto_create_enabled', 'auto_create_status_id', 'cost', 'cod_fee', 'sort_order') as $field) {
+        foreach (array('auto_create_enabled', 'auto_create_status_id', 'pickup_status_id', 'cost', 'cod_fee', 'sort_order') as $field) {
             if ($data[$field] === '') {
                 $data[$field] = '0';
             }
         }
-        foreach (array('auto_complete_notify', 'pseudo_cron') as $field) {
+        foreach (array('auto_complete_notify', 'pickup_notify', 'pseudo_cron') as $field) {
             if ($data[$field] === '') {
                 $data[$field] = '1';
             }

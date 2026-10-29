@@ -31,6 +31,8 @@ class ControllerExtensionShippingCourierCenterCron extends Controller {
                 $this->ccSendReturnMail($event, (int)$id);
             }, function ($order_id) {
                 $this->ccSendCompletedMail((int)$order_id);
+            }, function ($order_id) {
+                $this->ccSendShippedMail((int)$order_id);
             });
             $this->response->setOutput($result['message'] . "\n" . implode("\n", $result['lines']) . "\n");
         } finally {

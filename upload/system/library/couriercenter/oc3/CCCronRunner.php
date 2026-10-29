@@ -15,9 +15,10 @@ class CCCronRunner {
      * @param bool        $ping     usage ping (tests pass false)
      * @param callable|null $notifier returns emails (event, id)
      * @param callable|null $on_completed function (order_id): «Η παραγγελία ολοκληρώθηκε» email
+     * @param callable|null $on_picked_up function (order_id): «Η παραγγελία στάλθηκε» email
      * @return array ['ran' => bool, 'message' => string, 'lines' => string[]]
      */
-    public static function run($db, $prefix, $config, $lock_dir, $site_url, $tracker = null, $ping = true, $notifier = null, $on_completed = null) {
+    public static function run($db, $prefix, $config, $lock_dir, $site_url, $tracker = null, $ping = true, $notifier = null, $on_completed = null, $on_picked_up = null) {
         $lock = rtrim(str_replace('\\', '/', $lock_dir), '/') . '/cc_cron.lock';
         if (is_file($lock) && (time() - (int)@filemtime($lock)) < self::LOCK_TTL) {
             return array('ran' => false, 'message' => 'Another run is in progress (' . basename($lock) . ')', 'lines' => array());
@@ -31,7 +32,7 @@ class CCCronRunner {
                 };
                 $api = new CCApi($text('user_alias'), $text('credential_value'), $text('api_key'), $text('billing_account'));
                 $svc = new \Opencart\Extension\Couriercenter\Library\CCVoucherService($db, $config, $prefix, $api);
-                $tracker = $svc->tracker($on_completed);
+                $tracker = $svc->tracker($on_completed, $on_picked_up);
                 $returns_api = $api;
             }
             $report = $tracker->run();

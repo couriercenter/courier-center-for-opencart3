@@ -65,11 +65,21 @@ trait CCControllerTrait {
         }
     }
 
-    /** Tracker of the shop's vouchers that emails the customer when a delivered order is completed. */
+    /** «Η παραγγελία στάλθηκε» to the customer of an order that moved because the courier picked its parcel up. */
+    protected function ccSendShippedMail($order_id) {
+        $m = $this->ccService()->shippedEmail((int)$order_id);
+        if ($m) {
+            $this->ccMail($m['to'], $m['subject'], $m['html'], $m['text']);
+        }
+    }
+
+    /** Tracker of the shop's vouchers that emails the customer on pickup and when a delivered order is completed. */
     protected function ccTracker() {
         $svc = $this->ccService();
         return $svc->tracker(function ($order_id) {
             $this->ccSendCompletedMail((int)$order_id);
+        }, function ($order_id) {
+            $this->ccSendShippedMail((int)$order_id);
         });
     }
 

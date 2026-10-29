@@ -20,6 +20,8 @@ if ($shop->rows("SHOW TABLES LIKE '" . $shop->env['prefix'] . "cc_shipments'")) 
     }
 }
 $ctx->data['cleanup_all'] = in_array('cleanup', $only, true);
+// logcheck looks only at the lines THIS run wrote: older lines (earlier runs, manual tests) stay in the log.
+$ctx->data['log_start'] = $shop->errorLogSize();
 $files = glob(__DIR__ . '/sections/*.php');
 sort($files);
 foreach ($files as $file) {

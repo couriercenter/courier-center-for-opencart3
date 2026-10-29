@@ -143,9 +143,14 @@ class SmokeShop {
     public function clearErrorLog() {
         @file_put_contents($this->errorLogPath(), '');
     }
-    /** Log lines without the leading "Y-m-d H:i:s - " timestamp. */
-    public function errorLogLines() {
-        $raw = is_file($this->errorLogPath()) ? file_get_contents($this->errorLogPath()) : '';
+    public function errorLogSize() {
+        clearstatcache();
+        return is_file($this->errorLogPath()) ? (int)filesize($this->errorLogPath()) : 0;
+    }
+    /** Log lines without the leading "Y-m-d H:i:s - " timestamp, from byte $from on (0 if the log was cleared since). */
+    public function errorLogLines($from = 0) {
+        $raw = is_file($this->errorLogPath()) ? (string)file_get_contents($this->errorLogPath()) : '';
+        $raw = $from > 0 && $from <= strlen($raw) ? substr($raw, $from) : $raw;
         $lines = array();
         foreach (preg_split('/\r\n|\r|\n/', $raw) as $l) { // not \R: it splits UTF-8 Greek (byte 0x85)
             $l = trim(preg_replace('/^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2} - /', '', $l));

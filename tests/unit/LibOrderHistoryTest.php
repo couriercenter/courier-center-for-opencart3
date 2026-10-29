@@ -50,3 +50,20 @@ function test_lib_history_uses_the_table_prefix_and_escapes_the_comment() {
     $ins = $db->matching('/INSERT INTO `shop_order_history`/');
     assert_contains("O\\'Reilly", $ins[0]);
 }
+function test_lib_history_drops_emoji_on_a_utf8_connection() {
+    // OpenCart 3 connects with utf8 (3 bytes): MySQL would store a 4-byte emoji as "????".
+    $db = cc_history_db(2);
+    $db->on('/@@character_set_connection/', array(array('cs' => 'utf8')));
+    (new CCOrderHistory($db, 'oc_'))->add(7, '🤖 Αυτόματη δημιουργία | 📦 Locker: Α & Β ✓');
+    $ins = $db->matching('/INSERT INTO `oc_order_history`/');
+    assert_contains("`comment` = 'Αυτόματη δημιουργία | Locker: Α & Β ✓'", $ins[0]);
+}
+function test_lib_history_keeps_emoji_on_a_utf8mb4_connection() {
+    $db = cc_history_db(2);
+    $db->on('/@@character_set_connection/', array(array('cs' => 'utf8mb4')));
+    $history = new CCOrderHistory($db, 'oc_');
+    $history->add(7, '🚚 παραδόθηκε');
+    $history->add(7, '📍 status');
+    assert_contains("`comment` = '🚚 παραδόθηκε'", $db->matching('/INSERT INTO `oc_order_history`/')[0]);
+    assert_count(1, $db->matching('/@@character_set_connection/'));
+}

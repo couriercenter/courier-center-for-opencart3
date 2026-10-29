@@ -21,6 +21,8 @@ class FakeDb {
 
     public function __construct() {
         $self = $this;
+        // like OpenCart 4 (utf8mb4): history notes keep their emoji; a test registers 'utf8' for OpenCart 3
+        $this->on('/@@character_set_connection/', array(array('cs' => 'utf8mb4')));
         $this->on("/^INSERT IGNORE INTO `\w*cc_locks` SET `name` = '([^']*)', `token` = '([^']*)', `locked_at` = '(\d+)'/", function ($sql, $m) use ($self) {
             if (!isset($self->locks[$m[1]])) {
                 $self->locks[$m[1]] = array('token' => $m[2], 'locked_at' => $m[3]);

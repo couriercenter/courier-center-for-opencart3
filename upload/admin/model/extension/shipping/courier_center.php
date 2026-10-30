@@ -30,7 +30,7 @@ class ModelExtensionShippingCourierCenter extends Model {
             return array();
         }
         $out = array();
-        foreach ($this->db->query("SELECT `order_id`, `shipping_method`, `shipping_code` FROM `" . DB_PREFIX . "order` WHERE `order_id` IN (" . $ids . ")")->rows as $row) {
+        foreach ($this->db->query("SELECT `order_id`, `shipping_method`, `shipping_code`, `custom_field` FROM `" . DB_PREFIX . "order` WHERE `order_id` IN (" . $ids . ")")->rows as $row) {
             $out[(int)$row['order_id']] = $row;
         }
         return $out;

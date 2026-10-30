@@ -172,6 +172,7 @@ try {
     c_ok(!empty($bs['success']), 'bulk status: ' . (isset($bs['message']) ? str_replace("\n", ' ', $bs['message']) : ''));
     $list = $admin->get($a('sale/order.list'))['body'];
     c_ok(strpos($list, 'cc-bulk-bar') !== false && strpos($list, 'ccListData') !== false && strpos($list, 'cc-bulk-point') !== false, 'order list: bulk bar with the point select');
+    c_ok(preg_match('/var METHODS = \{.*"boxnow":(true|false)/', $list) === 1, 'order list: customer BOX NOW choice in the list data (type before a voucher)');
     $day = q1("SELECT DATE(`created_at`) AS d FROM `{$P}cc_shipments` WHERE `order_id` = $o1");
     $mp = $admin->get($a('extension/couriercenter/shipping/courier_center_manifest', array('account' => '100-0120-0001', 'manifest_date' => $day['d'])))['body'];
     c_ok(strpos($mp, 'name="account"') !== false && strpos($mp, '1 vouchers') !== false && strpos($mp, 'name="route"') !== false, 'manifest page: point filter, count, working form');

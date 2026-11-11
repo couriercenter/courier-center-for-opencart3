@@ -160,7 +160,9 @@ try {
         return js($admin->post($base . 'admin/index.php?route=extension/couriercenter/shipping/courier_center.setLocker&user_token=' . $token, $f));
     };
     $page = $info($id);
-    c_ok(strpos($page, 'name="cc_bn_mode" value="pick"') !== false && strpos($page, 'id="cc-bn-admin-overlay"') !== false, "order #$id without BOX NOW: «Επιλογή από χάρτη» + map modal");
+    // 1.1.5: with the checkbox ticked & locked on this BOX NOW method the order is BOX NOW «auto» (map via «Επιλογή locker από χάρτη»)
+    c_ok((strpos($page, 'name="cc_bn_mode" value="pick"') !== false || strpos($page, 'data-cc-action="change-locker"') !== false)
+        && strpos($page, 'id="cc-bn-admin-overlay"') !== false, "order #$id without a locker: map choice + map modal");
     $r = $set(array('order_id' => $id, 'locker_id' => ''));
     c_ok(empty($r['success']), 'setLocker without a locker is refused');
     $r = $set(array('order_id' => $id, 'locker_id' => 'L123', 'locker_code' => 'L123', 'locker_name' => 'Locker Α & Β'));
@@ -173,6 +175,71 @@ try {
     $r = $set(array('order_id' => $id, 'locker_id' => '999', 'locker_name' => 'X'));
     c_ok(empty($r['success']) && $has_locker($cf($id)), 'setLocker refused while the voucher is active');
     c_ok(strpos($info($id), 'data-cc-action="change-locker"') === false, 'no «Αλλαγή locker» with an active voucher');
+
+    echo "== 1.1.5: the widget's AJAX writes the choice straight into the unconfirmed order\n";
+    // the order exists (written before the choice arrived, like Journal 3), nothing rewrites it afterwards
+    list($h, $u) = $checkout(null);
+    $id = $latest();
+    $orders[] = $id;
+    c_ok(!isset($cf($id)['cc_delivery_mode']), "order #$id written without a choice");
+    js($h->post($u('extension/couriercenter/shipping/courier_center_boxnow.saveSession'), $pick));
+    c_ok($has_locker($cf($id)), "saveSession alone put the locker into order #$id: " . json_encode($cf($id), JSON_UNESCAPED_UNICODE));
+    js($h->post($u('extension/couriercenter/shipping/courier_center_boxnow.saveSession'), array('selected' => '')));
+    c_ok(!isset($cf($id)['cc_delivery_mode']), "unticking removed it from order #$id");
+    q1("UPDATE `{$P}order` SET `order_status_id` = 1 WHERE `order_id` = '$id'");
+    js($h->post($u('extension/couriercenter/shipping/courier_center_boxnow.saveSession'), $pick));
+    c_ok(!isset($cf($id)['cc_delivery_mode']), "a confirmed order #$id is never touched by saveSession");
+
+    echo "== 1.1.5: BOX NOW ticked & locked on a BOX NOW method = BOX NOW even without the choice\n";
+    $setting = function ($key, $value) use ($P) {
+        q1("DELETE FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_$key'");
+        if ($value !== null) {
+            q1("INSERT INTO `{$P}setting` SET `store_id` = 0, `code` = 'shipping_courier_center', `key` = 'shipping_courier_center_$key', `value` = '"
+                . (is_array($value) ? json_encode($value) : $value) . "', `serialized` = " . (is_array($value) ? 1 : 0));
+        }
+    };
+    $saved = array();
+    foreach (array('boxnow_enabled', 'boxnow_default_selected', 'boxnow_shipping_methods', 'handled_shipping_methods') as $k) {
+        $saved[$k] = q1("SELECT `value`, `serialized` FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_$k'");
+    }
+    try {
+        $setting('boxnow_enabled', '1');
+        $setting('boxnow_default_selected', '1');
+        $setting('boxnow_shipping_methods', array('flat'));
+        $setting('handled_shipping_methods', array('courier_center', 'flat'));
+        $checkout(null, 'bank_transfer.bank_transfer'); // BOX NOW + αντικαταβολή is refused by design
+        $id = $latest();
+        $orders[] = $id;
+        q1("UPDATE `{$P}order` SET `order_status_id` = 1, `custom_field` = '[]' WHERE `order_id` = '$id'");
+        $page = $info($id);
+        c_ok(strpos($page, 'data-cc-action="create-boxnow"') !== false, "order #$id (flat, no choice): order page offers «Δημιουργία BOX NOW Voucher»");
+        $list = $admin->get($base . 'admin/index.php?route=sale/order.list&user_token=' . $token . '&filter_order_id=' . $id)['body']
+            . $admin->get($base . 'admin/index.php?route=sale/order&user_token=' . $token . '&filter_order_id=' . $id)['body'];
+        c_ok((bool)preg_match('/"' . $id . '":\{[^}]*"boxnow":true/', $list), "order list «Τύπος»: order #$id is BOX NOW");
+        $r = js($admin->post($base . 'admin/index.php?route=extension/couriercenter/shipping/courier_center.bulkCreate&user_token=' . $token, array('order_ids' => (string)$id)));
+        c_ok(!empty($r['success']) && strpos((string)($r['message'] ?? ''), 'BOX NOW: 1') !== false, 'bulk create: ' . json_encode($r, JSON_UNESCAPED_UNICODE));
+        $s = q1("SELECT `voucher_number`, `is_boxnow` FROM `{$P}cc_shipments` WHERE `order_id` = '$id'");
+        c_ok(isset($s['is_boxnow']) && (int)$s['is_boxnow'] === 1, "order #$id got a BOX NOW voucher " . ($s['voucher_number'] ?? ''));
+        if (!empty($s['voucher_number'])) {
+            $v = js($admin->post($base . 'admin/index.php?route=extension/couriercenter/shipping/courier_center.voidShipment&user_token=' . $token, array('order_id' => $id)));
+            c_ok(!empty($v['success']), 'test voucher voided ' . $s['voucher_number']);
+        }
+        $r = js($admin->post($base . 'admin/index.php?route=extension/couriercenter/shipping/courier_center.removeBoxNow&user_token=' . $token, array('order_id' => $id)));
+        c_ok(!empty($r['success']) && ($cf($id)['cc_delivery_mode'] ?? '') === 'none', "«Αφαίρεση BOX NOW» stores «none» in order #$id");
+        c_ok(strpos($info($id), 'data-cc-action="create-boxnow"') === false, "after the removal order #$id stays a normal shipment");
+
+        echo "== 1.1.5: settings page has «Και από αυτά τα status»\n";
+        $page = $admin->get($base . 'admin/index.php?route=extension/couriercenter/shipping/courier_center&user_token=' . $token)['body'];
+        c_ok(strpos($page, 'name="shipping_courier_center_extra_active_statuses[]"') !== false, 'checkbox list rendered');
+    } finally {
+        foreach ($saved as $k => $row) {
+            q1("DELETE FROM `{$P}setting` WHERE `key` = 'shipping_courier_center_$k'");
+            if ($row !== null) {
+                q1("INSERT INTO `{$P}setting` SET `store_id` = 0, `code` = 'shipping_courier_center', `key` = 'shipping_courier_center_$k', `value` = '"
+                    . $m->real_escape_string($row['value']) . "', `serialized` = " . (int)$row['serialized']);
+            }
+        }
+    }
 } catch (Throwable $e) {
     c_ok(false, get_class($e) . ': ' . $e->getMessage());
 }

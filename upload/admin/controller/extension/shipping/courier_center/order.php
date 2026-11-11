@@ -32,6 +32,13 @@ class ControllerExtensionShippingCourierCenterOrder extends Controller {
                 $shipment[$k] = $this->ccText($v);
             }
             $cf = $this->model_extension_shipping_courier_center->getOrderCustomField($order_id);
+            $this->load->model('sale/order');
+            $order = $this->model_sale_order->getOrder($order_id);
+            // BOX NOW forced at checkout (ticked & locked on a BOX NOW method) but the choice never reached the order.
+            $forced_boxnow = $order && !isset($cf['cc_delivery_mode']) && empty($cf['cc_locker_id']) && $this->ccService()->boxnowForcedFor($order);
+            if ($forced_boxnow) {
+                $cf['cc_delivery_mode'] = 'auto';
+            }
 
             $status = (string)($shipment['status_code'] ?? '');
             $status_class = '';
@@ -63,8 +70,6 @@ class ControllerExtensionShippingCourierCenterOrder extends Controller {
             }
 
             // Consignee preview (shipping address, per-field fallback to the payment address)
-            $this->load->model('sale/order');
-            $order = $this->model_sale_order->getOrder($order_id);
             $consignee = '';
             if ($order) {
                 // The address exactly as the voucher will carry it (with the separate street number, if configured).

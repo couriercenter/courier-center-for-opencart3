@@ -42,12 +42,16 @@ class ModelExtensionShippingCourierCenter extends Model {
         return is_array($cf) ? $cf : array();
     }
 
-    /** Remove the customer's BOX NOW choice from the order (custom_field). */
+    /**
+     * Remove the customer's BOX NOW choice from the order (custom_field). cc_delivery_mode «none» remembers the
+     * merchant's decision, so a BOX NOW method with the locked checkbox does not bring BOX NOW back (1.1.5).
+     */
     public function clearOrderBoxnow($order_id) {
         $cf = $this->getOrderCustomField($order_id);
-        foreach (array('cc_locker_id', 'cc_locker_name', 'cc_locker_code', 'cc_delivery_mode') as $key) {
+        foreach (array('cc_locker_id', 'cc_locker_name', 'cc_locker_code') as $key) {
             unset($cf[$key]);
         }
+        $cf['cc_delivery_mode'] = 'none';
         $this->db->query("UPDATE `" . DB_PREFIX . "order` SET `custom_field` = '" . $this->db->escape(json_encode($cf)) . "' WHERE `order_id` = '" . (int)$order_id . "'");
     }
 

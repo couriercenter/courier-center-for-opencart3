@@ -154,6 +154,39 @@ class CCVoucherService {
         ];
     }
 
+    /**
+     * BOX NOW is on with the checkbox «ticked & locked» (boxnow_default_selected) and the order's shipping
+     * method is one of the BOX NOW methods: the customer could not untick BOX NOW at checkout, so the order IS
+     * BOX NOW even when the choice never reached it (one-page checkouts that save the order before the widget's
+     * AJAX, payment confirmations that arrive without the customer's session). Not when the merchant removed
+     * BOX NOW from the order (cc_delivery_mode «none»).
+     */
+    public function boxnowForcedFor(array $order) {
+        if ((string)$this->setting('boxnow_enabled') !== '1' || (string)$this->setting('boxnow_default_selected') !== '1') {
+            return false;
+        }
+        $cf = $order['custom_field'] ?? [];
+        if (!is_array($cf)) {
+            $cf = json_decode((string)$cf, true);
+        }
+        if (is_array($cf) && (string)($cf['cc_delivery_mode'] ?? '') === 'none') {
+            return false;
+        }
+        $code = self::shippingCode($order);
+        $allowed = $this->setting('boxnow_shipping_methods');
+        $allowed = (is_array($allowed) && $allowed) ? array_values(array_map('strval', $allowed)) : ['courier_center'];
+        return $code !== '' && in_array($code, $allowed, true);
+    }
+
+    /** The order's BOX NOW choice (boxnowFromOrder), else «Αυτόματη εύρεση» when BOX NOW was forced at checkout. */
+    public function boxnowForOrder(array $order) {
+        $bn = self::boxnowFromOrder($order);
+        if ($bn || !$this->boxnowForcedFor($order)) {
+            return $bn;
+        }
+        return ['boxnow' => true, 'locker_id' => '', 'locker_code' => '', 'locker_name' => ''];
+    }
+
     public function orderProducts($order_id) {
         return $this->db->query("SELECT `product_id`, `quantity` FROM `" . $this->prefix . "order_product` WHERE `order_id` = '" . (int)$order_id . "'")->rows;
     }
@@ -347,6 +380,14 @@ class CCVoucherService {
      * Order statuses for the tracker: "active" (pending + processing: an order still on its way)
      * and "complete" (config_complete_status). Cancelled / refunded / ... are in neither.
      */
+    /** Order statuses the merchant added as «still on its way» (setting extra_active_statuses): tracked, moved on pickup, completed on delivery. */
+    public function extraActiveStatuses() {
+        $v = $this->setting('extra_active_statuses');
+        return array_values(array_unique(array_filter(array_map('intval', is_array($v) ? $v : []), function ($x) {
+            return $x > 0;
+        })));
+    }
+
     public function statusSets() {
         $active = [(int)$this->config->get('config_order_status_id')];
         foreach (['config_processing_status', 'config_complete_status'] as $key) {
@@ -361,6 +402,8 @@ class CCVoucherService {
             }
         }
         $complete = isset($complete) ? $complete : [];
+        // The merchant's extra «still on its way» statuses (1.1.5), e.g. the «paid» status a card gateway sets.
+        $active = array_merge($active, $this->extraActiveStatuses());
         $active = array_values(array_diff(array_unique(array_filter($active)), $complete));
         return ['active' => $active, 'complete' => $complete];
     }

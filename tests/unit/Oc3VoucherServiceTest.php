@@ -143,3 +143,36 @@ function test_oc3_service_reads_boxnow_from_custom_field() {
     assert_true($auto['boxnow']);
     assert_same('', $auto['locker_id']);
 }
+
+function test_oc3_service_boxnow_forced_by_locked_checkbox_on_a_boxnow_method() {
+    $on = array('shipping_courier_center_boxnow_enabled' => '1', 'shipping_courier_center_boxnow_default_selected' => '1',
+        'shipping_courier_center_boxnow_shipping_methods' => array('xboxnow'));
+    list($svc) = cc_service($on);
+    $bn_method = cc_oc3_order(array('shipping_code' => 'xboxnow.xboxnow', 'shipping_method' => 'BOXNOW'));
+    assert_true($svc->boxnowForcedFor($bn_method), 'locked checkbox + BOX NOW method = BOX NOW');
+    assert_same(array('boxnow' => true, 'locker_id' => '', 'locker_code' => '', 'locker_name' => ''), $svc->boxnowForOrder($bn_method), 'no choice saved → auto');
+    assert_false($svc->boxnowForcedFor(cc_oc3_order()), 'door-to-door method stays normal');
+    assert_same(array(), $svc->boxnowForOrder(cc_oc3_order()));
+    $picked = cc_oc3_order(array('shipping_code' => 'xboxnow.xboxnow', 'custom_field' => array('cc_delivery_mode' => 'pick', 'cc_locker_id' => 'L9', 'cc_locker_code' => 'L9', 'cc_locker_name' => 'Περίπτερο')));
+    assert_same('L9', $svc->boxnowForOrder($picked)['locker_id'], 'the customer\'s locker wins');
+    $removed = cc_oc3_order(array('shipping_code' => 'xboxnow.xboxnow', 'custom_field' => '{"cc_delivery_mode":"none"}'));
+    assert_false($svc->boxnowForcedFor($removed), 'merchant removed BOX NOW → stays removed');
+    assert_same(array(), $svc->boxnowForOrder($removed));
+    list($not_locked) = cc_service(array_merge($on, array('shipping_courier_center_boxnow_default_selected' => '0')));
+    assert_false($not_locked->boxnowForcedFor($bn_method), 'checkbox not locked: the customer could untick it');
+    list($disabled) = cc_service(array_merge($on, array('shipping_courier_center_boxnow_enabled' => '0')));
+    assert_false($disabled->boxnowForcedFor($bn_method));
+    list($default_list) = cc_service(array('shipping_courier_center_boxnow_enabled' => '1', 'shipping_courier_center_boxnow_default_selected' => '1'));
+    assert_true($default_list->boxnowForcedFor(cc_oc3_order()), 'no method list saved = courier_center (as the checkout widget)');
+}
+
+function test_oc3_service_extra_active_statuses_join_the_tracked_set() {
+    list($svc) = cc_service(array('config_order_status_id' => '1', 'config_processing_status' => array('2'), 'config_complete_status' => array('5')));
+    $sets = $svc->statusSets();
+    assert_same(array(1, 2), $sets['active'], 'default: OpenCart\'s own statuses only');
+    list($svc) = cc_service(array('config_order_status_id' => '1', 'config_processing_status' => array('2'), 'config_complete_status' => array('5'),
+        'shipping_courier_center_extra_active_statuses' => array('15', '5', '0', '15')));
+    $sets = $svc->statusSets();
+    assert_same(array(1, 2, 15), $sets['active'], 'extra «paid» status tracked; a complete status never becomes active');
+    assert_same(array(5), $sets['complete']);
+}

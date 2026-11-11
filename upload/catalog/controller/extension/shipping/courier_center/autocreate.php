@@ -43,7 +43,7 @@ class ControllerExtensionShippingCourierCenterAutocreate extends Controller {
                     $svc->history()->add($order_id, '⚠️ Αυτόματη δημιουργία voucher παραλείφθηκε: η μέθοδος αποστολής δεν διαχειρίζεται από το plugin.');
                     return;
                 }
-                $res = $svc->createForOrder($order, array_merge(array('service_type' => 'next_day', 'mode' => 'auto'), CCVoucherService::boxnowFromOrder($order)));
+                $res = $svc->createForOrder($order, array_merge(array('service_type' => 'next_day', 'mode' => 'auto'), $svc->boxnowForOrder($order)));
                 if (empty($res['success'])) {
                     $prefix = (isset($res['stage']) && $res['stage'] === 'api') ? '❌ Αυτόματη δημιουργία voucher απέτυχε: ' : '⚠️ Αυτόματη δημιουργία voucher παραλείφθηκε: ';
                     $svc->history()->add($order_id, $prefix . $res['error']);

@@ -139,6 +139,10 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         $data['shipping_methods_list'] = $this->shippingMethodsList();
         $bn = $this->config->get($this->prefix . 'boxnow_shipping_methods');
         $data['boxnow_shipping_methods'] = (is_array($bn) && $bn) ? $bn : array('courier_center');
+        $extra = isset($this->request->post[$this->prefix . 'extra_active_statuses']) ? $this->request->post[$this->prefix . 'extra_active_statuses'] : $this->config->get($this->prefix . 'extra_active_statuses');
+        $data['extra_active_statuses'] = is_array($extra) ? array_values(array_map('strval', $extra)) : array();
+        $complete = $this->config->get('config_complete_status');
+        $data['complete_status_ids'] = is_array($complete) ? array_values(array_map('strval', $complete)) : array();
         $hm = $this->config->get($this->prefix . 'handled_shipping_methods');
         $data['handled_shipping_methods'] = is_array($hm) ? $hm : array();
 
@@ -461,7 +465,7 @@ class ControllerExtensionShippingCourierCenter extends Controller {
                 $c['skipped_unmanaged']++;
                 continue;
             }
-            $bn = CCVoucherService::boxnowFromOrder($order);
+            $bn = $svc->boxnowForOrder($order);
             try {
                 $res = $svc->createForOrder($order, array_merge(array('service_type' => 'next_day', 'mode' => 'bulk', 'pickup_point' => $point_code), $bn));
             } catch (\Throwable $e) {
@@ -763,6 +767,10 @@ class ControllerExtensionShippingCourierCenter extends Controller {
         if ($handled['warning'] !== '') {
             $warnings[] = $handled['warning'];
         }
+        $extra = is_array($post[$p . 'extra_active_statuses'] ?? null) ? $post[$p . 'extra_active_statuses'] : array();
+        $post[$p . 'extra_active_statuses'] = array_values(array_unique(array_filter(array_map('intval', $extra), function ($x) {
+            return $x > 0;
+        })));
         $default = trim($this->ccText($post[$p . 'default_pickup_point'] ?? ''));
         $post[$p . 'default_pickup_point'] = in_array($default, $codes, true) ? $default : '';
         $warnings = array_merge($warnings, CCReturnsSettings::sanitizePost($post, array_values(array_filter($codes, 'strlen'))));

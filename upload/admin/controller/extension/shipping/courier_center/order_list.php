@@ -37,7 +37,7 @@ class ControllerExtensionShippingCourierCenterOrderList extends Controller {
                 }
                 foreach ($this->model_extension_shipping_courier_center->getOrderShippingRows($ids) as $id => $row) {
                     $methods[(string)$id] = array('name' => \Opencart\Extension\Couriercenter\Library\CCVoucherService::shippingName($row), 'managed' => $svc->isHandledOrder($row),
-                        'boxnow' => (bool)\Opencart\Extension\Couriercenter\Library\CCVoucherService::boxnowFromOrder($row));
+                        'boxnow' => (bool)$svc->boxnowForOrder($row));
                 }
                 // «Επιστροφή»: status of the newest return request (+N when there are more)
                 $repo = new \Opencart\Extension\Couriercenter\Library\CCReturnsRepo($this->db, DB_PREFIX);

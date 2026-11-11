@@ -309,6 +309,19 @@
               <p class="help-block">Στέλνεται μόνο για vouchers των τελευταίων 7 ημερών· παλαιότερες αποστολές αλλάζουν status χωρίς email.</p>
             </div>
           </div>
+          <div class="form-group">
+            <label class="col-sm-2 control-label">Και από αυτά τα status</label>
+            <div class="col-sm-10">
+              <div class="well well-sm" style="max-width:320px; height:150px; overflow:auto; margin-bottom:5px;">
+                {% for order_status in order_statuses %}
+                {% if order_status.order_status_id not in complete_status_ids %}
+                <div class="checkbox"><label><input type="checkbox" name="shipping_courier_center_extra_active_statuses[]" value="{{ order_status.order_status_id|e }}"{% if order_status.order_status_id in extra_active_statuses %} checked{% endif %}> {{ order_status.name|e }}</label></div>
+                {% endif %}
+                {% endfor %}
+              </div>
+              <p class="help-block">Το plugin παρακολουθεί και αλλάζει μόνο παραγγελίες που είναι «σε εξέλιξη»: το αρχικό status και τα «Processing Order Status» του OpenCart (Σύστημα → Ρυθμίσεις → Επιλογές). Αν ένας τρόπος πληρωμής (π.χ. κάρτα) βάζει τις παραγγελίες σε άλλο status, π.χ. «Πληρωμένη», τσεκάρετέ το εδώ: θα ενημερώνονται κι αυτές, θα αλλάζουν με την παραλαβή και θα ολοκληρώνονται με την παράδοση. Κανένα τσεκ = μόνο του OpenCart (προεπιλογή).</p>
+            </div>
+          </div>
 
           <hr><h4 style="padding-left:15px">Αυτόματη Ολοκλήρωση</h4>
 

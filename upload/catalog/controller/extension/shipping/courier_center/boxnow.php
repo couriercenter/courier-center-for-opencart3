@@ -58,7 +58,35 @@ class ControllerExtensionShippingCourierCenterBoxnow extends Controller {
         } else {
             $this->session->data['cc_boxnow'] = $sel;
         }
+        try {
+            $this->syncSessionOrder($sel);
+        } catch (\Throwable $e) {
+            $this->log->write('Courier Center BOX NOW session order: ' . $e->getMessage());
+        }
         $this->response->setOutput(json_encode(array('success' => true, 'selection' => $sel)));
+    }
+
+    /**
+     * One-page checkouts (Journal 3 …) write the order when the shipping method changes, often BEFORE this AJAX
+     * arrives, and card payments (Viva …) confirm the order from the bank's callback without the customer's
+     * session: the order would stay without the choice. So the choice also goes straight into the session's
+     * order while it is not confirmed yet (order_status_id 0), with the same rules as a storefront editOrder.
+     */
+    private function syncSessionOrder($sel) {
+        $order_id = isset($this->session->data['order_id']) ? (int)$this->session->data['order_id'] : 0;
+        if ($order_id <= 0) {
+            return;
+        }
+        $q = $this->db->query("SELECT `order_status_id`, `custom_field`, `shipping_code` FROM `" . DB_PREFIX . "order` WHERE `order_id` = '" . $order_id . "' LIMIT 1");
+        if (!$q->num_rows || (int)$q->row['order_status_id'] !== 0) {
+            return;
+        }
+        $old = json_decode((string)$q->row['custom_field'], true);
+        $old = is_array($old) ? $old : array();
+        $cf = CCBoxnow::onEdit('', $old, $old, $sel, (string)$q->row['shipping_code'], $this->allowedMethods());
+        if ($cf !== $old) {
+            $this->db->query("UPDATE `" . DB_PREFIX . "order` SET `custom_field` = '" . $this->db->escape(json_encode($cf)) . "' WHERE `order_id` = '" . $order_id . "'");
+        }
     }
 
     /** Event catalog/model/checkout/order/addOrder/after: $args[0] = order data, $output = new order_id. */
